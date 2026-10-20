@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>NBA Ticker</title>
+<style>
+  :root{
+    --bar:#0c1a2b; --edge:#f2b632; --text:#f4f6f8; --dim:#8fa3b8;
+    --live:#ff4d4d; --win:#ffffff; --lose:#8fa3b8;
+    --speed:90; /* píxeles por segundo */
+    --h:64px;
+  }
+  html,body{margin:0;background:transparent;overflow:hidden}
+  body{font-family:"Barlow Condensed","Arial Narrow",Arial,sans-serif;color:var(--text)}
+  #bar{position:fixed;left:0;right:0;bottom:0;height:var(--h);background:var(--bar);
+       border-top:3px solid var(--edge);display:flex;align-items:center;overflow:hidden}
+  #tag{flex:none;height:100%;padding:0 22px;background:var(--edge);color:#10202f;
+       display:flex;align-items:center;font-weight:800;font-size:30px;letter-spacing:.5px;z-index:2}
+  #lane{flex:1;overflow:hidden;position:relative;height:100%}
+  #track{position:absolute;left:0;top:0;height:100%;display:flex;align-items:center;white-space:nowrap;will-change:transform}
+  .g{display:inline-flex;align-items:center;gap:10px;padding:0 28px;font-size:30px;font-weight:600;
+     border-right:1px solid #24384e;height:80%}
+  .eq{display:inline-flex;align-items:center;gap:8px}
+  .lg{height:44px;width:44px;object-fit:contain}
+  .vs{font-size:22px;font-weight:500}
+  .t{color:var(--lose)} .t.w{color:var(--win);font-weight:800}
+  .s{font-variant-numeric:tabular-nums;font-weight:800}
+  .st{font-size:22px;color:var(--dim);font-weight:500;margin-left:6px}
+  .st.live{color:var(--live);font-weight:700}
+  .msg{padding:0 28px;font-size:26px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="bar">
+  <div id="tag">NBA</div>
+  <div id="lane"><div id="track"></div></div>
+</div>
+<script>
+/* Parámetros opcionales por URL: ?speed=120&refresh=30&pos=top */
+const q = new URLSearchParams(location.search);
+const SPEED = +q.get('speed') || 90;
+const REFRESH = (+q.get('refresh') || 30) * 1000;
+const BACK = q.has('back') ? +q.get('back') : 1;   // días anteriores
+const AHEAD = q.has('ahead') ? +q.get('ahead') : 1; // días siguientes
+if (q.get('pos') === 'top') {
+  const b = document.getElementById('bar');
+  b.style.bottom = 'auto'; b.style.top = '0';
+  b.style.borderTop = 'none'; b.style.borderBottom = '3px solid var(--edge)';
+}
+const URL_API = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard';
+const track = document.getElementById('track');
+const lane = document.getElementById('lane');
+let html = '', raf = null, x = 0, last = 0, w = 0;
+
+function fmtHora(iso){
+  return new Date(iso).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+}
+function game(ev){
+  const c = ev.competitions[0];
+  const h = c.competitors.find(t => t.homeAway === 'home');
+  const a = c.competitors.find(t => t.homeAway === 'away');
+  const st = ev.status.type;
+  let estado, cls = '';
+  if (st.state === 'in')        { estado = st.shortDetail.replace(' - ', ' '); cls = 'live'; }
+  else if (st.state === 'post') { estado = 'FINAL'; }
+  else                          { estado = fmtHora(ev.date); }
+  const jugado = st.state !== 'pre';
+  const aw = jugado && +a.score > +h.score, hw = jugado && +h.score > +a.score;
+  const sc = t => jugado ? `<span class="s">${t.score}</span>` : '';
+  const eq = (t, gana) => `<span class="eq">
+      <img class="lg" src="${t.team.logo || ''}" alt="" onerror="this.style.visibility='hidden'">
+      <span class="t ${gana?'w':''}">${t.team.abbreviation}</span>${sc(t)}</span>`;
+  // Local primero, visitante después
+  return `<span class="g">
+    ${eq(h, hw)}
+    <span class="t vs">vs</span>
+    ${eq(a, aw)}
+    <span class="st ${cls}">${estado}</span></span>`;
+}
+function render(content){
+  if (content === html) return;
+  html = content;
+  track.innerHTML = content;
+  w = track.scrollWidth;
+  // duplica el contenido para que el bucle sea continuo
+  if (w < lane.clientWidth * 2) {
+    const n = Math.ceil(lane.clientWidth * 2 / Math.max(w,1));
+    track.innerHTML = content.repeat(n + 1);
+    w = track.scrollWidth / (n + 1);
+  } else {
+    track.innerHTML = content + content;
+  }
+  if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); }
+}
+function tick(now){
+  const dt = (now - last) / 1000; last = now;
+  x -= SPEED * dt;
+  if (-x >= w) x += w;
+  track.style.transform = `translateX(${x}px)`;
+  raf = requestAnimationFrame(tick);
+}
+function ymd(d){
+  return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+}
+async function load(){
+  try{
+    // Pide ayer, hoy y mañana (configurable) y une todos los partidos sin duplicados
+    const fechas = [];
+    for (let i = -BACK; i <= AHEAD; i++){
+      const d = new Date(); d.setDate(d.getDate() + i); fechas.push(ymd(d));
+    }
+    const resp = await Promise.all(fechas.map(f =>
+      fetch(`${URL_API}?dates=${f}&limit=100`, {cache:'no-store'}).then(r => r.json())
+    ));
+    const mapa = new Map();
+    resp.forEach(d => (d.events || []).forEach(ev => mapa.set(ev.id, ev)));
+    const orden = {in:0, pre:1, post:2};
+    const evs = [...mapa.values()].sort((a,b) => {
+      const sa = orden[a.status.type.state], sb = orden[b.status.type.state];
+      if (sa !== sb) return sa - sb;
+      return sa === 2 ? new Date(b.date) - new Date(a.date) : new Date(a.date) - new Date(b.date);
+    });
+    if (!evs.length) render('<span class="msg">No hay partidos de la NBA en estas fechas</span>');
+    else render(evs.map(game).join(''));
+  }catch(e){
+    if (!html) render('<span class="msg">Sin conexión con los datos de la NBA, reintentando…</span>');
+  }
+}
+load(); setInterval(load, REFRESH);
+</script>
+</body>
+</html>
