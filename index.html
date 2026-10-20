@@ -41,7 +41,7 @@ const q = new URLSearchParams(location.search);
 const SPEED = +q.get('speed') || 90;
 const REFRESH = (+q.get('refresh') || 30) * 1000;
 const BACK = q.has('back') ? +q.get('back') : 1;   // días anteriores
-const AHEAD = q.has('ahead') ? +q.get('ahead') : 1; // días siguientes
+const AHEAD = q.has('ahead') ? +q.get('ahead') : 0; // días siguientes
 if (q.get('pos') === 'top') {
   const b = document.getElementById('bar');
   b.style.bottom = 'auto'; b.style.top = '0';
@@ -114,13 +114,11 @@ async function load(){
     ));
     const mapa = new Map();
     resp.forEach(d => (d.events || []).forEach(ev => mapa.set(ev.id, ev)));
-    const orden = {in:0, pre:1, post:2};
-    const evs = [...mapa.values()].sort((a,b) => {
-      const sa = orden[a.status.type.state], sb = orden[b.status.type.state];
-      if (sa !== sb) return sa - sb;
-      return sa === 2 ? new Date(b.date) - new Date(a.date) : new Date(a.date) - new Date(b.date);
-    });
-    if (!evs.length) render('<span class="msg">No hay partidos de la NBA en estas fechas</span>');
+    // Solo partidos en directo
+    const evs = [...mapa.values()]
+      .filter(ev => ev.status.type.state === 'in')
+      .sort((a,b) => new Date(a.date) - new Date(b.date));
+    if (!evs.length) render('<span class="msg">Ahora mismo no hay partidos de la NBA en directo</span>');
     else render(evs.map(game).join(''));
   }catch(e){
     if (!html) render('<span class="msg">Sin conexión con los datos de la NBA, reintentando…</span>');
