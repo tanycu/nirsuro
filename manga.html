@@ -1,0 +1,621 @@
+<!-- File: Manga a novela.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Manga a Novela - IA Pro</title>
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--bg:#faf7f2;--card:#fff;--ink:#2a2622;--mute:#7a7066;--line:#e4ddd2;--acc:#b3412f;--accink:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1917;--card:#252220;--ink:#efe9e1;--mute:#a09689;--line:#3a3531;--acc:#e0705c;--accink:#1b1917;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1b1917;--card:#252220;--ink:#efe9e1;--mute:#a09689;--line:#3a3531;--acc:#e0705c;--accink:#1b1917;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px 56px}
+h1{font:600 28px/1.2 Georgia,"Times New Roman",serif;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:28px 12px;text-align:center;color:var(--mute);cursor:pointer;transition:border-color .3s}
+.drop.over{border-color:var(--acc)}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px;margin-top:12px}
+.thumbs img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.th{position:relative}
+.th .n{position:absolute;top:3px;left:3px;background:rgba(0,0,0,.65);color:#fff;font:600 11px system-ui,sans-serif;padding:0 5px;border-radius:8px}
+.tb{display:flex;justify-content:space-between;margin-top:3px}
+.tb button{padding:0 7px;font-size:14px;line-height:20px;border-radius:4px;background:var(--line);color:var(--ink);border:none;cursor:pointer}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute);flex:1;min-width:140px}
+select,input[type=text],textarea{font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+button{font:inherit;font-weight:600;padding:10px 18px;border-radius:8px;border:0;background:var(--acc);color:var(--accink);cursor:pointer;transition:opacity .2s}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:12px 0}
+.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .3s}
+#out{font:18px/1.75 Georgia,"Times New Roman",serif;white-space:pre-wrap}
+#out h2{font-size:20px;margin:1.6em 0 .4em}
+.msg{color:var(--mute);font-size:14px;margin-top:4px}
+.card h3{margin:0 0 4px;font:600 18px Georgia,"Times New Roman",serif}
+#vwrap canvas,#vwrap video{width:min(100%,360px);display:block;border-radius:8px;background:#111;margin-top:12px}
+.emo{font:600 11px system-ui,sans-serif;color:var(--acc);border:1px solid var(--line);border-radius:10px;padding:0 6px;margin:0 3px;vertical-align:middle}
+.pg{display:flex;align-items:center;gap:8px;margin:16px 0 4px;font:600 12px system-ui,sans-serif;color:var(--mute);cursor:pointer}
+.pg img{height:56px;width:auto;border-radius:4px;border:1px solid var(--line)}
+.pg.big{flex-direction:column;align-items:flex-start}
+.pg.big img{height:auto;max-width:100%;max-height:420px}
+</style>
+</head>
+<body data-theme="auto">
+<main>
+<h1 id="titleDisplay">Manga a novela</h1>
+<p class="sub">Convierte páginas de manga en una novela en prosa y crea vídeos con tu propio audio.</p>
+
+<div class="card">
+  <div class="drop" id="drop">Arrastra aquí las páginas (imágenes, PDF o EPUB) o toca para elegirlas<br><small>Se pueden añadir más archivos cuando quieras.</small></div>
+  <input type="file" id="file" accept="image/*,.pdf,.epub" multiple hidden>
+  <div class="thumbs" id="thumbs"></div>
+  <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+    <button id="sortn" class="sec" hidden>Ordenar por nombre</button>
+    <button id="clear" class="sec" hidden>Quitar todas</button>
+  </div>
+  <p class="msg" id="count"></p>
+</div>
+
+<div class="card">
+  <div class="row">
+    <label>Estilo
+      <select id="style">
+        <option value="novela ligera, ágil y con mucho diálogo">Novela ligera (con diálogos)</option>
+        <option value="novela literaria, descriptiva y con voz narrativa cuidada">Literaria</option>
+        <option value="narración sin ningún diálogo: nunca escribas conversaciones ni frases textuales de los personajes, sin comillas ni rayas de diálogo; cuenta lo que dicen y piensan los personajes solo en estilo indirecto, integrado en la narración">Sin diálogos (solo narración)</option>
+        <option value="resumen narrativo conciso, en prosa continua">Resumen narrativo</option>
+        <option data-short="1" data-words="115" data-secs="50" value="narración fluida y continua, pensada para un vídeo de unos 50 segundos (unas 115 palabras en total): un único relato de ritmo constante, sin pausas ni cortes, con frases enlazadas entre sí mediante conectores, sin frases sueltas ni listas; cuenta solo los hechos esenciales, sin diálogos ni detalles secundarios, y menciona por su nombre a los personajes principales siempre que sea posible">Narración breve (vídeo de 50 segundos)</option>
+        <option data-short="1" data-words="125" data-secs="55" value="narración épica pero fluida, pensada para un vídeo de unos 55 segundos (unas 125 palabras en total): un único relato de ritmo constante y tono grandioso, con frases de longitud media enlazadas mediante conectores, vocabulario evocador pero fácil de pronunciar, sin pausas ni cortes, sin frases sueltas ni listas; cuenta solo los hechos esenciales, sin diálogos, y menciona por su nombre a los personajes principales siempre que sea posible">Épica fluida (vídeo de 55 segundos)</option>
+        <option data-short="1" data-names="1" data-words="270" data-secs="120" value="narración suave, serena y totalmente ligada, pensada para un vídeo de unos 2 minutos (unas 270 palabras en total): un único relato continuo, sin saltos bruscos ni cambios raros de escena, en el que cada frase enlaza con la anterior mediante conectores y transiciones naturales, con tono tranquilo, frases de longitud media y vocabulario sencillo y fácil de pronunciar; cuenta la historia con sus hechos importantes en orden, sin diálogos directos, y nombra siempre a los personajes por su nombre propio en lugar de describirlos (evita fórmulas como «el joven espadachín»)">Narrativa suave (vídeo de 2 minutos)</option>
+        <option value="novela de aventuras épica, con ritmo intenso, tono grandioso y escenas de acción vívidas">Épica y de aventuras</option>
+        <option value="novela negra, tono oscuro y sombrío, frases secas y atmósfera tensa">Oscura / noir</option>
+        <option value="novela humorística, con tono ligero, ironía y toques cómicos, sin alterar los hechos">Humorística</option>
+        <option value="novela juvenil, lenguaje sencillo y cercano, emotiva y fácil de leer">Juvenil</option>
+        <option value="prosa poética, lírica y evocadora, con imágenes sensoriales y ritmo musical">Poética</option>
+        <option value="novela narrada en primera persona por el protagonista, íntima y centrada en sus pensamientos y emociones">Primera persona</option>
+        <option value="crónica sobria, en tercera persona, tono distante y objetivo, como un relato histórico">Crónica</option>
+      </select></label>
+    <label>Idioma
+      <select id="lang"><option>español</option><option>English</option><option>français</option><option>português</option></select></label>
+    <label>Páginas por tanda
+      <select id="batch"><option>1</option><option>2</option><option>3</option><option>4</option><option selected>6</option><option>8</option></select></label>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <label>Título (opcional)<input type="text" id="title" placeholder="Título del manga"></label>
+    <label>Sentido de lectura
+      <select id="dir"><option value="derecha a izquierda (estilo japonés)">Derecha a izquierda</option><option value="izquierda a derecha">Izquierda a derecha</option></select></label>
+  </div>
+  <label style="margin-top:12px">Personajes (nombre y cómo reconocerlos; uno por línea)
+    <textarea id="chars" rows="3" style="font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);resize:vertical">Ijichi: el personaje rubio
+Amane: la chica morena
+Otaku Kun: el chico</textarea></label>
+  <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink);margin-top:12px">
+    <input type="checkbox" id="emo"> Incluir etiquetas de emoción para el lector de voz
+  </label>
+  <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+    <button id="go" disabled>Crear novela</button>
+    <button id="stop" class="sec" hidden>Detener</button>
+  </div>
+  <div class="bar" id="barw" hidden><i id="bar"></i></div>
+  <p class="msg" id="status"></p>
+</div>
+
+<div class="card" id="result" hidden>
+  <div id="out"></div>
+  <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+    <button id="rw" disabled>Reescribir con el estilo elegido</button>
+    <button id="rwstop" class="sec" hidden>Detener</button>
+    <button id="rest" class="sec" disabled>Volver al original</button>
+    <button id="dl" class="sec">Descargar texto (.md)</button>
+    <button id="dltxt" class="sec">Descargar .txt para el lector de voz</button>
+  </div>
+  <p class="msg">Cambia el estilo o el idioma arriba y pulsa «Reescribir»: se reescribe el texto ya generado, sin volver a leer las imágenes.</p>
+</div>
+
+<div class="card" id="vcard" hidden>
+  <h3>Vídeo con tu audio</h3>
+  <p class="msg">Sube tu narración y se crea un vídeo MP4 (H.264, 30 fps constantes) compatible con DaVinci Resolve. Cada página aparece empezando por su parte superior y se desplaza hacia abajo durante su tiempo asociado al texto.</p>
+  <label>Audio (mp3, m4a, wav…)<input type="file" id="afile" accept="audio/*"></label>
+  <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink);margin-top:10px">
+    <input type="checkbox" id="noaud"> Exportar sin audio dentro del vídeo
+  </label>
+  <label style="margin-top:10px">Formato del vídeo
+    <select id="vfmt"><option value="img">Ancho de las imágenes (1280 de alto)</option><option value="h169">Horizontal 16:9 (1280×720)</option></select>
+  </label>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+    <button id="vgo" disabled>Crear vídeo</button>
+    <button id="vprev" class="sec" disabled>Vista previa</button>
+    <button id="vstop" class="sec" hidden>Detener</button>
+    <button id="vdl" hidden>Descargar vídeo</button>
+  </div>
+  <div class="bar"><i id="vbar"></i></div>
+  <p class="msg" id="vstatus"></p>
+  <div id="vwrap" hidden>
+    <canvas id="vcanvas"></canvas>
+    <video id="vvid" controls playsinline hidden></video>
+  </div>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+let files=[],urls=[],ctrl=null,novel="",original="",audioFile=null,audioDur=0,vblob=null,vext="webm",vstop=null;
+let isProcessing = false;
+
+const natural=(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true});
+const EMO_RE=/(\[(?:neutro|alegre|emocionado|triste|enfadado|miedo|susurro|calmado)\])/i;
+
+function emoRule(){return $("emo").checked?" Además, inserta etiquetas de emoción entre corchetes, en minúsculas, al inicio de cada pasaje donde cambie el tono emocional de la lectura en voz alta. Usa solo estas: [neutro] [alegre] [emocionado] [triste] [enfadado] [miedo] [susurro] [calmado]. Pon una al comienzo del texto y cambia solo cuando el tono cambie de verdad. Las etiquetas van dentro del texto, nunca en la línea de un marcador de página.":""}
+function charsRule(){const t=$("chars").value.trim();return t?"\nPersonajes conocidos (identifícalos por su aspecto y llámalos siempre por su nombre, nunca con descripciones como «la chica rubia»): "+t.split(/\n+/).map(x=>x.trim()).filter(Boolean).join("; ")+".":""}
+function shortWords(){const o=$("style").selectedOptions[0];return +(o&&o.dataset.words)||115}
+function shortSecs(){const o=$("style").selectedOptions[0];return +(o&&o.dataset.secs)||50}
+function shortNames(){const o=$("style").selectedOptions[0];return !!(o&&o.dataset.names)}
+function shortOn(){const o=$("style").selectedOptions[0];return !!(o&&o.dataset.short)}
+
+function addText(out,t){t.split(EMO_RE).forEach((x,k)=>{if(k%2){const c=document.createElement("span");c.className="emo";c.textContent=x;out.appendChild(c)}else if(x)out.appendChild(document.createTextNode(x))})}
+
+const urlOf=new Map();
+const isPdf=f=>/\.pdf$/i.test(f.name)||f.type==="application/pdf";
+const isEpub=f=>/\.epub$/i.test(f.name)||f.type==="application/epub+zip";
+const baseName=f=>f.name.replace(/\.[^.]+$/,"");
+
+async function pdfToImages(file,onProg){
+  if(!window.pdfjsLib)throw new Error("No se pudo cargar el lector de PDF");
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const doc=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+  const out=[];
+  for(let i=1;i<=doc.numPages;i++){
+    onProg(i,doc.numPages);
+    const pg=await doc.getPage(i),v0=pg.getViewport({scale:1});
+    let sc=Math.min(4,1600/Math.max(v0.width,v0.height));
+    if(v0.height*sc>15000)sc=15000/v0.height;
+    const v=pg.getViewport({scale:sc});
+    const cv=document.createElement("canvas");cv.width=Math.round(v.width);cv.height=Math.round(v.height);
+    const cx=cv.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,cv.width,cv.height);
+    await pg.render({canvasContext:cx,viewport:v}).promise;
+    const blob=await new Promise(r=>cv.toBlob(r,"image/jpeg",.9));
+    out.push(new File([blob],baseName(file)+"-"+String(i).padStart(4,"0")+".jpg",{type:"image/jpeg",lastModified:file.lastModified}));
+    pg.cleanup();
+  }
+  return out;
+}
+
+async function epubToImages(file,onProg){
+  if(!window.JSZip)throw new Error("No se pudo cargar el lector de EPUB");
+  const zip=await JSZip.loadAsync(file);
+  const txt=async p=>{const f=zip.file(p);return f?await f.async("string"):null};
+  const norm=(base,rel)=>{
+    const parts=base.split("/").slice(0,-1).concat(decodeURIComponent(rel.split("#")[0]).split("/"));
+    const st=[];for(const x of parts){if(x==="."||x==="")continue;if(x==="..")st.pop();else st.push(x)}return st.join("/");
+  };
+  const IMG=/\.(jpe?g|png|webp|gif)$/i;
+  let order=[];
+  try{
+    const dp=new DOMParser();
+    const cont=await txt("META-INF/container.xml");
+    const opfPath=dp.parseFromString(cont,"application/xml").querySelector("rootfile").getAttribute("full-path");
+    const opf=dp.parseFromString(await txt(opfPath),"application/xml");
+    const man={};
+    opf.querySelectorAll("manifest > item").forEach(i=>{man[i.getAttribute("id")]={href:i.getAttribute("href"),type:i.getAttribute("media-type")||""}});
+    const spine=[...opf.querySelectorAll("spine > itemref")].map(r=>man[r.getAttribute("idref")]).filter(Boolean);
+    for(const it of spine){
+      const path=norm(opfPath,it.href);
+      if(/^image\//.test(it.type)){order.push(path);continue}
+      const html=await txt(path);if(!html)continue;
+      const d=dp.parseFromString(html,"text/html");
+      d.querySelectorAll("img,image").forEach(el=>{
+        const r=el.getAttribute("src")||el.getAttribute("xlink:href")||el.getAttribute("href");
+        if(r&&!/^data:/i.test(r))order.push(norm(path,r));
+      });
+    }
+  }catch(e){order=[]}
+  order=[...new Set(order)].filter(p=>zip.file(p)&&IMG.test(p));
+  if(!order.length)order=Object.keys(zip.files).filter(n=>!zip.files[n].dir&&IMG.test(n)).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const MIME={jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif"};
+  const out=[];
+  for(let i=0;i<order.length;i++){
+    onProg(i+1,order.length);
+    const ext=order[i].split(".").pop().toLowerCase();
+    const raw=await zip.file(order[i]).async("arraybuffer");
+    out.push(new File([raw],baseName(file)+"-"+String(i+1).padStart(4,"0")+"."+ext,{type:MIME[ext]||"image/jpeg",lastModified:file.lastModified}));
+  }
+  return out;
+}
+
+async function addFiles(list){
+  if(isProcessing)return;
+  $("go").disabled=true;
+  const nu=[];let note="";
+  try{
+    for(const f of [...list]){
+      // Reconocimiento mejorado: por extensión o por tipo
+      const isImg = f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name);
+      if(isImg){nu.push(f);continue}
+      if(!isPdf(f)&&!isEpub(f))continue;
+      try{
+        $("count").textContent="Leyendo "+f.name+"…";
+        const imgs=await(isPdf(f)?pdfToImages:epubToImages)(f,(i,n)=>{$("count").textContent="Leyendo "+f.name+": página "+i+" de "+n+"…"});
+        if(!imgs.length)note+=" No encontré páginas con imágenes en "+f.name+".";
+        imgs.forEach(x=>nu.push(x));
+      }catch(e){note+=" No pude leer "+f.name+" ("+((e&&e.message)||"error")+")."}
+    }
+    nu.sort(natural);
+    const key=f=>f.name+"|"+f.size+"|"+f.lastModified;
+    const have=new Set(files.map(key));
+    nu.forEach(f=>{if(!have.has(key(f))){files.push(f);have.add(key(f))}});
+  }finally{
+    refresh();
+    if(note)$("count").textContent+=note;
+    $("go").disabled=!files.length;
+  }
+}
+
+function refresh(){
+  urls=files.map(f=>{if(!urlOf.has(f))urlOf.set(f,URL.createObjectURL(f));return urlOf.get(f)});
+  const box=$("thumbs");box.innerHTML="";
+  files.forEach((f,k)=>{
+    const w=document.createElement("div");w.className="th";
+    const i=new Image();i.src=urls[k];i.title=f.name;w.appendChild(i);
+    const n=document.createElement("span");n.className="n";n.textContent=k+1;w.appendChild(n);
+    const bar=document.createElement("div");bar.className="tb";
+    [["‹",-1],["×",0],["›",1]].forEach(([t,d])=>{
+      const b=document.createElement("button");b.type="button";b.textContent=t;
+      b.onclick=e=>{e.stopPropagation();if(isProcessing)return;
+        if(d===0)files.splice(k,1);
+        else{const j=k+d;if(j<0||j>=files.length)return;[files[k],files[j]]=[files[j],files[k]]}
+        refresh()};
+      bar.appendChild(b);
+    });
+    w.appendChild(bar);box.appendChild(w);
+  });
+  $("count").textContent=files.length?files.length+" páginas cargadas. Usa ‹ › para cambiar el orden y × para quitar una.":"";
+  $("clear").hidden=!files.length;$("sortn").hidden=files.length<2;
+}
+
+$("sortn").onclick=()=>{if(isProcessing)return;files.sort(natural);refresh()};
+$("clear").onclick=()=>{if(isProcessing)return;files=[];refresh()};
+$("drop").onclick=()=>$("file").click();
+$("file").onchange=e=>{const l=[...e.target.files];e.target.value="";addFiles(l)};
+["dragover","dragenter"].forEach(t=>$("drop").addEventListener(t,e=>{e.preventDefault();$("drop").classList.add("over")}));
+["dragleave","drop"].forEach(t=>$("drop").addEventListener(t,e=>{e.preventDefault();$("drop").classList.remove("over")}));
+$("drop").addEventListener("drop",e=>addFiles(e.dataTransfer.files));
+
+function shrink(file,max=1100){
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const s=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b=>b?res(b):rej(new Error("No se pudo procesar una imagen")),"image/jpeg",.8);
+    };
+    img.onerror=()=>rej(new Error("Imagen no válida: "+file.name));
+    img.src=URL.createObjectURL(file);
+  });
+}
+
+function badge(n){
+  const d=document.createElement("div");d.className="pg";
+  if(urls[n-1]){const i=new Image();i.src=urls[n-1];d.appendChild(i)}
+  const t=document.createElement("span");t.textContent="Página "+n+(urls[n-1]?" · toca para ampliar":"");d.appendChild(t);
+  d.onclick=()=>d.classList.toggle("big");
+  return d;
+}
+
+function render(){
+  const out=$("out");out.textContent="";
+  novel.split("\n").forEach(line=>{
+    if(line.startsWith("## ")){const h=document.createElement("h2");h.textContent=line.slice(3);out.appendChild(h);return}
+    const parts=line.split(/\[\[P(\d+)\]\]/);
+    parts.forEach((t,k)=>{if(k%2)out.appendChild(badge(+t));else if(t)addText(out,t)});
+    const only=parts.length===3&&!parts[0].trim()&&!parts[2].trim();
+    if(!only)out.appendChild(document.createTextNode("\n"));
+  });
+}
+
+$("stop").onclick=()=>ctrl&&ctrl.abort();
+
+$("go").onclick=async()=>{
+  isProcessing = true;
+  $("status").textContent="Conectando con Claude…";
+  const sample=window.claude?await window.claude.use("sample"):null;
+  if(!sample){$("status").textContent="Abre esta página desde claude.ai (no como enlace suelto) para poder usar Claude.";isProcessing=false;return}
+  const lim=await sample.limits().catch(()=>({}));
+  if(!lim.images){$("status").textContent="Esta vista no permite enviar imágenes a Claude.";isProcessing=false;return}
+  const n=Math.max(1,Math.min(+$("batch").value,lim.images.maxCount||6)),total=Math.ceil(files.length/n);
+  novel=($("title").value?"# "+$("title").value+"\n\n":"");
+  $("result").hidden=false;$("vcard").hidden=false;$("barw").hidden=false;$("go").disabled=true;$("stop").hidden=false;
+  let memory="",tail="";
+  ctrl=new AbortController();
+  try{
+    for(let b=0;b<total;b++){
+      $("status").textContent="Leyendo tanda "+(b+1)+" de "+total+" (puede tardar un poco)…";
+      $("bar").style.width=(b/total*100)+"%";
+      const imgs=await Promise.all(files.slice(b*n,b*n+n).map(f=>shrink(f)));
+      const prompt=`Eres un novelista profesional que adapta manga a prosa. Las imágenes son páginas consecutivas de un manga${$("title").value?" titulado «"+$("title").value+"»":""}, con sentido de lectura ${$("dir").value}. Lee viñetas y globos de texto en el orden correcto.${charsRule()}
+Escribe la adaptación en ${$("lang").value}, con estilo de ${$("style").value}. Convierte las viñetas en narración, descripciones y diálogos; no menciones viñetas ni dibujos en el texto (los marcadores de página son la única referencia a las páginas). Sé fiel a lo que ocurre y no inventes hechos nuevos.
+Esta es la tanda ${b+1} de ${total}; las imágenes son las páginas ${b*n+1} a ${Math.min(b*n+n,files.length)} del manga, en el orden en que se te envían. Para indicar a qué página corresponde cada parte del texto, escribe en una línea propia el marcador [[P<número de página>]] justo antes del pasaje que narra esa página (por ejemplo [[P${b*n+1}]]), una vez por página y sin omitir ninguna. ${memory?"Resumen de lo ocurrido hasta ahora (Contexto): "+memory+"\nÚltimo párrafo escrito: "+tail+"\nContinúa la narración sin repetir nada.":"Es el comienzo de la historia."}
+Escribe solo el texto de la novela, sin títulos, encabezados ni numeración de capítulos; la narración debe continuar de forma fluida con lo anterior. Termina con una línea que empiece por «MEMORIA:» con un resumen de la historia hasta ahora en máximo 80 palabras (personajes con sus nombres si se conocen, lugares, situación).
+${emoRule()}${shortOn()?` Longitud: este fragmento debe tener unas ${Math.max(10,Math.round(shortWords()/total))} palabras, porque la novela completa debe durar unos ${shortSecs()} segundos leída en voz alta (unas ${shortWords()} palabras en total). Cuenta lo esencial ajustándote a la longitud indicada, y pon cada marcador de página con una o dos frases breves. ${shortNames()?"Nombra siempre a los personajes por su nombre propio, nunca por una descripción (no escribas fórmulas como «el joven espadachín»). Toma los nombres de las páginas (globos, rótulos, presentaciones) y de lo que ya sabes de la historia, y no inventes ninguno. Si el nombre de un personaje todavía no ha aparecido, usa solo una referencia mínima y neutra («él», «ella», «el chico») hasta que se conozca, y a partir de entonces usa siempre su nombre. Mantén los mismos nombres que ya usaste antes.":"Menciona por su nombre a los personajes principales siempre que su nombre aparezca en las páginas (globos, rótulos, presentaciones); si alguno no tiene nombre visible, descríbelo en pocas palabras (por ejemplo «el joven espadachín») y no inventes nombres; mantén los mismos nombres que ya usaste antes."} El texto debe fluir sin pausas ni saltos con lo anterior, como un único relato continuo: no empieces de cero ni cierres la historia en este fragmento.`:""}
+Responde solo con el texto y la línea MEMORIA.`;
+      const base=novel;
+      const r=await sample(prompt,{images:imgs,signal:ctrl.signal,cache:false,modelTier:"default",
+        onText:({text})=>{novel=base+text.split(/\nMEMORIA:/)[0]+"\n\n";render()}});
+      const parts=r.text.split(/\nMEMORIA:/);
+      novel=base+parts[0].trim()+"\n\n";render();
+      memory=(parts[1]||memory).trim();
+      tail=parts[0].trim().split("\n").filter(Boolean).pop()||"";
+    }
+    $("bar").style.width="100%";$("status").textContent="Listo.";original=novel;$("rw").disabled=false;$("rest").disabled=false;
+  }catch(e){
+    const c=e&&e.code,M={cancelled:"Detenido.",not_granted:"Hace falta permitir que esta página use Claude. Pulsa de nuevo y acepta.",rate_limited:"Se alcanzó un límite de uso. Espera un poco y vuelve a intentarlo.",image_rejected:"Alguna imagen no es válida o es demasiado grande.",refused:"Claude no pudo procesar esas páginas.",session_expired:"Tu sesión cadó, vuelve a iniciar sesión.",empty_completion:"Claude no devolvió texto; prueba con menos páginas por tanda.",sampling_disabled:"Claude no está disponible en esta cuenta."};
+    $("status").textContent=M[c]||"Se interrumpió ("+(c||"error")+"). Pulsa «Crear novela» para reintentar.";
+    if(e&&e.text&&c!=="refused"){novel+=e.text.split(/\nMEMORIA:/)[0]+"\n\n";render()}
+  }
+  isProcessing = false;
+  $("go").disabled=false;$("stop").hidden=true;
+};
+
+let original="";
+const RWMSG={cancelled:"Detenido; se ha restaurado el texto anterior.",not_granted:"Hace falta permitir que esta página use Claude.",rate_limited:"Se alcanzó un límite de uso. Espera un poco.",refused:"Claude no pudo reescribir ese texto.",empty_completion:"Claude no devolvió texto."};
+$("rwstop").onclick=()=>ctrl&&ctrl.abort();
+$("rest").onclick=()=>{if(original){novel=original;render();$("status").textContent="Texto original restaurado."}};
+$("rw").onclick=async()=>{
+  if(!original)return;
+  const sample=window.claude?await window.claude.use("sample"):null;
+  if(!sample){$("status").textContent="Abre esta página desde claude.ai para poder usar Claude.";return}
+  const parts=[];{let cur="";original.split("\n").forEach(line=>{
+    if(/^#\s/.test(line)){if(cur.trim())parts.push(cur);parts.push(line);cur="";return}
+    if(cur.length>3000&&(/^\[\[P\d+\]\]$/.test(line.trim())||!line.trim())){parts.push(cur);cur=""}
+    cur+=line+"\n"});if(cur.trim())parts.push(cur)}
+  if(shortOn()){const t=parts.filter(x=>/^#\s/.test(x)),r=parts.filter(x=>!/^#\s/.test(x)).join("");parts.length=0;parts.push(...t,r)}
+  $("rw").disabled=true;$("go").disabled=true;$("rest").disabled=true;$("rwstop").hidden=false;$("barw").hidden=false;
+  isProcessing = true;
+  ctrl=new AbortController();
+  let acc="";
+  try{
+    for(let i=0;i<parts.length;i++){
+      const part=parts[i];
+      if(/^#\s/.test(part)){acc+=part.trim()?part.trim()+"\n\n":"";novel=acc;render();continue}
+      $("status").textContent="Reescribiendo "+(i+1)+" de "+parts.length+"…";
+      $("bar").style.width=(i/parts.length*100)+"%";
+      const base=acc;
+      const prompt="Reescribe el siguiente fragmento de una novela en "+$("lang").value+", con estilo de "+$("style").value+". "+(shortOn()?(shortNames()?"Usa siempre el nombre propio de los personajes en lugar de descripciones (no uses fórmulas como «el joven espadachín»), tomando los nombres que aparezcan en el texto y sin inventar ninguno.":"Menciona por su nombre a los personajes principales cuando aparezcan en el texto, sin inventar nombres.")+" Resume la historia completa en unas "+shortWords()+" palabras (unos "+shortSecs()+" segundos leída en voz alta, sin pasarte), conservando solo los hechos esenciales y su orden, en un texto fluido y continuo, sin pausas ni cortes.":"Mantén exactamente los mismos hechos, personajes y orden de los acontecimientos; no añadas ni quites eventos.")+" No añadas títulos, encabezados ni numeración de capítulos. Conserva también, cada uno en su línea y al inicio del pasaje que le corresponde, los marcadores de página como [[P12]]: no los elimines ni cambies su número. "+charsRule()+(emoRule()||" Si el texto ya trae etiquetas de emoción entre corchetes (como [alegre]), consérvalas en su sitio.")+" Responde solo con el fragmento reescrito.\n\n"+part;
+      const r=await sample(prompt,{signal:ctrl.signal,cache:false,onText:({text})=>{novel=base+text+"\n\n";render()}});
+      acc=base+r.text.trim()+"\n\n";novel=acc;render();
+    }
+    $("bar").style.width="100%";$("status").textContent="Listo: texto reescrito. Puedes volver al original cuando quieras.";
+  }catch(e){
+    novel=original;render();
+    $("status").textContent=RWMSG[e&&e.code]||"Se interrumpió ("+((e&&e.code)||"error")+"); se ha restaurado el texto anterior.";
+  }
+  isProcessing = false;
+  $("rw").disabled=false;$("go").disabled=false;$("rest").disabled=false;$("rwstop").hidden=true;
+};
+
+$("dltxt").onclick=async()=>{
+  const d=window.claude?await window.claude.use("downloads"):null;
+  if(!d){$("status").textContent="La descarga no está disponible aquí.";return}
+  const txt0=novel.replace(/\[\[P\d+\]\]\s*/g,"").replace(/^#+\s*/gm,"").replace(/\n{3,}/g,"\n\n").trim();
+  const txt=shortOn()?txt0.replace(/\s*\n+\s*/g," "):txt0;
+  try{await d.save({filename:($("title").value||"novela")+".txt",data:txt})}catch(e){}
+};
+$("dl").onclick=async()=>{
+  const d=window.claude?await window.claude.use("downloads"):null;
+  if(!d){$("status").textContent="La descarga no está disponible aquí.";return}
+  try{await d.save({filename:($("title").value||"novela")+".md",data:novel.replace(/\[\[P(\d+)\]\]/g,"*(Página $1)*")})}catch(e){}
+};
+
+/* ===== Vídeo ===== */
+let audioFile=null,audioDur=0,vblob=null,vext="webm",vstop=null;
+const loadImg=u=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error("img"));i.src=u});
+$("afile").onchange=e=>{
+  audioFile=e.target.files[0];audioDur=0;$("vgo").disabled=true;$("vprev").disabled=true;
+  if(!audioFile)return;
+  const a=new Audio();a.preload="metadata";a.src=URL.createObjectURL(audioFile);
+  a.onloadedmetadata=()=>{
+    audioDur=a.duration;
+    if(!isFinite(audioDur)||!audioDur){audioDur=0;$("vstatus").textContent="No pude leer la duración de ese audio. Prueba con un mp3 o m4a.";return}
+    $("vstatus").textContent="Audio de "+Math.round(audioDur)+" s. Crear el vídeo dura lo mismo que el audio; no cambies de pestaña mientras tanto.";
+    $("vgo").disabled=false;$("vprev").disabled=false;
+  };
+  a.onerror=()=>{$("vstatus").textContent="No pude leer ese audio."};
+};
+$("vstop").onclick=()=>vstop&&vstop();
+$("vgo").onclick=()=>runVideo(true);
+$("vprev").onclick=()=>runVideo(false);
+$("vdl").onclick=async()=>{
+  const d=window.claude?await window.claude.use("downloads"):null;
+  if(!d||!vblob){$("vstatus").textContent="La descarga no está disponible aquí.";return}
+  try{await d.save({filename:($("title").value||"novela")+"."+vext,data:vblob})}catch(e){if(e&&e.code!=="declined")$("vstatus").textContent="No se pudo guardar ("+(e.code||"error")+")."}
+};
+function wrapText(ctx,text,maxW){
+  const lines=[];let cur="";
+  text.split(" ").forEach(w=>{const t=cur?cur+" "+w:w;if(ctx.measureText(t).width>maxW&&cur){lines.push(cur);cur=w}else cur=t});
+  if(cur)lines.push(cur);return lines;
+}
+function chunkText(str,max){
+  const out=[];let cur="";
+  str.split(" ").forEach(w=>{const t=cur?cur+" "+w:w;if(t.length>max&&cur){out.push(cur);cur=w}else cur=t});
+  if(cur)out.push(cur);return out;
+}
+async function runVideo(record){
+  if(!novel.trim()||!files.length||!audioDur){$("vstatus").textContent="Necesitas la novela generada y un audio.";return}
+  if(record&&!(window.MediaRecorder&&HTMLCanvasElement.prototype.captureStream)){$("vstatus").textContent="Tu navegador no puede grabar vídeo desde la página. Prueba la vista previa o usa Chrome.";return}
+  let H=1280,W=720,PW=720,X0=0;
+  const cv=$("vcanvas");cv.width=W;cv.height=H;const ctx=cv.getContext("2d");
+  $("vwrap").hidden=false;$("vvid").hidden=true;cv.hidden=false;$("vdl").hidden=true;
+  const busy=b=>{["vgo","vprev","go","rw","rest"].forEach(k=>{$(k).disabled=b});$("vstop").hidden=!b;if(!b){$("vgo").disabled=false;$("vprev").disabled=false;$("go").disabled=false;if(original){$("rw").disabled=false;$("rest").disabled=false}}};
+  busy(true);$("vstatus").textContent="Preparando imágenes…";
+  let ims;
+  try{ims=await Promise.all(urls.map(loadImg))}catch(e){busy(false);$("vstatus").textContent="No pude cargar las imágenes.";return}
+  if($("vfmt").value==="h169"){
+    H=720;W=1280;PW=768;X0=(W-PW)/2;cv.width=W;cv.height=H;
+  }else{
+    H=1280;
+    const cnt={};ims.forEach(im=>{cnt[im.naturalWidth]=(cnt[im.naturalWidth]||0)+1});
+    const mw=+Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]||b-a)[0];
+    W=Math.max(240,Math.min(1920,Math.round(mw/2)*2));PW=W;X0=0;cv.width=W;cv.height=H;
+  }
+  const lay=ims.map(im=>({im,h:Math.round(PW*im.naturalHeight/im.naturalWidth)}));
+  const items=[];let page=0;
+  novel.split("\n").forEach(line=>{
+    line.replace(/^#+\s*/,"").split(/(\[\[P\d+\]\])/).forEach(tok=>{
+      const m=tok.match(/^\[\[P(\d+)\]\]$/);
+      if(m){const n=+m[1];if(n>=1&&n<=files.length)page=n;return}
+      const t=tok.replace(/\[(?:neutro|alegre|emocionado|triste|enfadado|miedo|susurro|calmado)\]/gi,"").replace(/\s+/g," ").trim();if(!t)return;
+      t.split(/(?<=[.!?…»”])\s+/).forEach(sn=>chunkText(sn,120).forEach(c=>items.push({t:c,page})));
+    });
+  });
+  if(!items.length){busy(false);$("vstatus").textContent="No hay texto para el vídeo.";return}
+  const total=items.reduce((a,i)=>a+i.t.length+12,0);let cum=0;
+  items.forEach(i=>{i.s=audioDur*cum/total;cum+=i.t.length+12;i.e=audioDur*cum/total});
+  const byPage={};
+  items.forEach(i=>{if(i.page&&!byPage[i.page])byPage[i.page]={page:i.page,s:i.s}});
+  let slots=Object.values(byPage).sort((a,b)=>a.s-b.s);
+  if(!slots.length)slots=lay.map((o,k)=>({page:k+1,s:k/lay.length*audioDur}));
+  slots[0].s=0;
+  slots.forEach((o,k)=>{o.e=k+1<slots.length?slots[k+1].s:audioDur;o.tr=k?Math.min(0.6,(o.e-o.s)*.25):0});
+  const geo=o=>{const h=lay[o.page-1].h;return{h,base:h<H?(H-h)/2:0,range:Math.max(0,h-H)}};
+  const yAt=(o,t)=>{const g=geo(o);const p=Math.min(1,Math.max(0,(t-o.s-o.tr)/Math.max(.5,o.e-o.s-o.tr-.4)));return g.base-p*g.range};
+  function draw(t){
+    ctx.fillStyle="#111";ctx.fillRect(0,0,W,H);
+    let k=slots.findIndex(o=>t>=o.s&&t<o.e);if(k<0)k=slots.length-1;
+    const o=slots[k];let y=yAt(o,t);
+    if(k>0&&t<o.s+o.tr){
+      const q=(t-o.s)/o.tr,e=q*q*(3-2*q),pv=slots[k-1];
+      ctx.drawImage(lay[pv.page-1].im,X0,yAt(pv,pv.e)-e*H,PW,geo(pv).h);
+      y+=(1-e)*H;
+    }
+    ctx.drawImage(lay[o.page-1].im,X0,y,PW,geo(o).h);
+  }
+  if(record&&window.VideoEncoder&&window.VideoFrame&&window.Mp4Muxer){
+    const FPS=30,noAudio=$("noaud").checked;
+    let vcodec=null;
+    for(const c of (Math.ceil(W/16)*Math.ceil(H/16)>8192?["avc1.640033","avc1.640029"]:["avc1.640029","avc1.4d0029","avc1.42001f"])){
+      try{const r=await VideoEncoder.isConfigSupported({codec:c,width:W,height:H,bitrate:5e6,framerate:FPS});if(r.supported){vcodec=c;break}}catch(e){}
+    }
+    if(vcodec){
+      let cancelled=false;vstop=()=>{cancelled=true};
+      const nap=ms=>new Promise(r=>setTimeout(r,ms));
+      try{
+        let abuf=null,acfg=null,audioMsg="";
+        if(!noAudio){
+          $("vstatus").textContent="Leyendo el audio…";
+          const ac0=new (window.AudioContext||window.webkitAudioContext)();
+          try{abuf=await ac0.decodeAudioData(await audioFile.arrayBuffer())}catch(e){abuf=null}
+          try{ac0.close()}catch(e){}
+          if(abuf&&window.AudioEncoder&&window.AudioData){
+            const c={codec:"mp4a.40.2",sampleRate:abuf.sampleRate,numberOfChannels:Math.min(2,abuf.numberOfChannels),bitrate:128000};
+            try{const r=await AudioEncoder.isConfigSupported(c);if(r.supported)acfg=c}catch(e){}
+          }
+          if(!acfg)audioMsg=" Tu navegador no puede codificar AAC, así que el MP4 no lleva audio: añade tu audio en DaVinci.";
+        }
+        const dur=abuf?abuf.duration:audioDur;
+        const muxer=new Mp4Muxer.Muxer({
+          target:new Mp4Muxer.ArrayBufferTarget(),
+          video:{codec:"avc",width:W,height:H},
+          ...(acfg?{audio:{codec:"aac",numberOfChannels:acfg.numberOfChannels,sampleRate:acfg.sampleRate}}:{}),
+          fastStart:"in-memory"
+        });
+        let encErr=null;
+        const venc=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>{encErr=e}});
+        venc.configure({codec:vcodec,width:W,height:H,bitrate:5e6,framerate:FPS});
+        const totalF=Math.ceil(dur*FPS);
+        for(let i=0;i<totalF;i++){
+          if(cancelled||encErr)break;
+          draw(Math.min(i/FPS,audioDur));
+          const fr=new VideoFrame(cv,{timestamp:Math.round(i*1e6/FPS),duration:Math.round(1e6/FPS)});
+          venc.encode(fr,{keyFrame:i%(FPS*2)===0});fr.close();
+          while(venc.encodeQueueSize>8)await nap(4);
+          if(i%10===0){$("vbar").style.width=(i/totalF*95)+"%";$("vstatus").textContent="Creando el MP4… "+Math.round(i/totalF*95)+"%";await nap(0)}
+        }
+        if(!cancelled&&!encErr){
+          await venc.flush();
+          if(acfg){
+            const aenc=new AudioEncoder({output:(c,m)=>muxer.addAudioChunk(c,m),error:e=>{encErr=e}});
+            aenc.configure(acfg);
+            const CH=acfg.numberOfChannels,SR=acfg.sampleRate,N=abuf.length;
+            for(let off=0;off<N;off+=SR){
+              if(cancelled||encErr)break;
+              const n=Math.min(SR,N-off),data=new Float32Array(n*CH);
+              for(let c=0;c<CH;c++)data.set(abuf.getChannelData(c).subarray(off,off+n),c*n);
+              const ad=new AudioData({format:"f32-planar",sampleRate:SR,numberOfFrames:n,numberOfChannels:CH,timestamp:Math.round(off/SR*1e6),data});
+              aenc.encode(ad);ad.close();
+              while(aenc.encodeQueueSize>8)await nap(4);
+            }
+            if(!cancelled&&!encErr)await aenc.flush();
+          }
+        }
+        if(cancelled){$("vstatus").textContent="Detenido."}
+        else if(encErr){$("vstatus").textContent="Error al codificar el vídeo: "+(encErr.message||encErr.name||"desconocido")+". Prueba con Chrome o Edge."}
+        else{
+          muxer.finalize();
+          vblob=new Blob([muxer.target.buffer],{type:"video/mp4"});vext="mp4";
+          $("vvid").src=URL.createObjectURL(vblob);$("vvid").hidden=false;cv.hidden=true;$("vdl").hidden=false;$("vbar").style.width="100%";
+          $("vstatus").textContent="MP4 listo (H.264"+(acfg?" + AAC":", sin audio")+", 30 fps constantes): compatible con DaVinci Resolve."+audioMsg;
+        }
+      }catch(e){
+        $("vstatus").textContent="No se pudo crear el MP4 ("+((e&&e.name)||"error")+"). Prueba con Chrome o Edge.";
+      }
+      busy(false);vstop=null;return;
+    }
+  }
+  if(record)$("vstatus").textContent="Tu navegador no puede crear MP4; se grabará en WebM, que DaVinci puede no abrir. Con Chrome o Edge obtendrás un MP4 compatible.";
+  // audio + grabación
+  const audio=new Audio(URL.createObjectURL(audioFile));
+  let rec=null,chunks=[],ac=null,raf=0,done=false,cancelled=false;
+  try{
+    if(record){
+      ac=new (window.AudioContext||window.webkitAudioContext)();
+      const dest=ac.createMediaStreamDestination();
+      ac.createMediaElementSource(audio).connect(dest);
+      await ac.resume();
+      const stream=new MediaStream([...cv.captureStream(30).getVideoTracks(),...dest.stream.getAudioTracks()]);
+      const mime=["video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm","video/mp4"].find(m=>MediaRecorder.isTypeSupported(m));
+      rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:3000000}:undefined);
+      vext=((rec.mimeType||mime||"")+"").includes("mp4")?"mp4":"webm";
+      rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+      draw(0);rec.start(1000);
+    }
+    draw(0);
+    await audio.play();
+  }catch(e){
+    busy(false);$("vstatus").textContent="No se pudo iniciar el audio o la grabación ("+((e&&e.name)||"error")+").";
+    if(rec&&rec.state!=="inactive")rec.stop();if(ac)ac.close();return;
+  }
+  $("vstatus").textContent=record?"Grabando el vídeo… no cambies de pestaña.":"Vista previa…";
+  const cleanup=()=>{busy(false);vstop=null;if(ac)ac.close()};
+  const finish=()=>{
+    if(done)return;done=true;cancelAnimationFrame(raf);audio.pause();
+    if(rec&&rec.state!=="inactive"){
+      rec.onstop=()=>{
+        if(!cancelled&&chunks.length){
+          vblob=new Blob(chunks,{type:rec.mimeType||"video/webm"});
+          $("vvid").src=URL.createObjectURL(vblob);$("vvid").hidden=false;cv.hidden=true;$("vdl").hidden=false;
+          $("vstatus").textContent="Vídeo listo ("+vext.toUpperCase()+"). "+(vext==="mp4"?"":"Si DaVinci no lo abre, crea el vídeo con Chrome o Edge para obtener un MP4.");
+        }else $("vstatus").textContent="Detenido.";
+        cleanup();
+      };
+      rec.stop();
+    }else{$("vstatus").textContent=cancelled?"Detenido.":"Vista previa terminada.";cleanup()}
+  };
+  vstop=()=>{cancelled=true;finish()};
+  audio.onended=()=>{draw(audioDur);setTimeout(finish,400)};
+  const frame=()=>{
+    if(done)return;
+    const t=Math.min(audio.currentTime,audioDur);
+    draw(t);$("vbar").style.width=(t/audioDur*100)+"%";
+    raf=requestAnimationFrame(frame);
+  };
+  frame();
+}
+</script>
+</body>
+</html>
