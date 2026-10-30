@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Cinta NFL para OBS - 100 Yardas - Horizontal</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: transparent;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Contenedor principal con fondo azul cobalto */
+    .ticker-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 90px;
+      background: linear-gradient(180deg, #0e1e36 0%, #081220 100%);
+      border-top: 4px solid #132a4a;
+      display: flex;
+      align-items: center;
+      flex-direction: row;
+      box-shadow: 0 -6px 15px rgba(0,0,0,0.7);
+      overflow: hidden;
+    }
+
+    /* Badge fijo con el logo de 100 Yardas */
+    .ticker-badge {
+      background-color: #081220;
+      padding: 0 15px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+      flex-shrink: 0;
+      border-right: 3px solid #132a4a;
+    }
+
+    .ticker-badge img {
+      height: 75px;
+      width: auto;
+      object-fit: contain;
+      border-radius: 50%;
+    }
+
+    /* Área de desplazamiento continuo */
+    .ticker-track-wrapper {
+      flex-grow: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    /* FORZADO HORIZONTAL: todo uno a la derecha del otro */
+    .ticker-track {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      width: max-content;
+      animation: marquee 60s linear infinite;
+    }
+
+    @keyframes marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* Tarjeta de partido - inline en fila */
+    .game-card {
+      display: inline-flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      flex-shrink: 0;
+      padding: 0 35px;
+      height: 90px;
+      border-right: 2px solid #172d4c;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .team {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .team-name {
+      font-weight: 800;
+      font-size: 26px;
+      letter-spacing: 1px;
+    }
+
+    .team img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.6));
+    }
+
+    .score {
+      font-weight: 900;
+      color: #ffcc00;
+      font-size: 32px;
+      min-width: 35px;
+      text-align: center;
+      margin-left: 4px;
+    }
+
+    .vs-separator {
+      margin: 0 18px;
+      color: #6a80a0;
+      font-size: 18px;
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+
+    .game-status {
+      margin-left: 25px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 800;
+      text-transform: uppercase;
+      background-color: #081220;
+      color: #b0c4de;
+      border: 1px solid #1d3960;
+      flex-shrink: 0;
+    }
+
+    .game-status.live {
+      background-color: #d50a0a;
+      color: #fff;
+      border-color: #ff3333;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ticker-container">
+    <div class="ticker-badge">
+      <img src="https://yt3.googleusercontent.com/68lUSlpoiWfaEZvl7146afQ_zygcqMDBCDk8u3q3fn07ix2G_NFZGnC0QR_tgFfHytP3-VyU=s160-c-k-c0x00ffffff-no-rj" alt="100 Yardas Logo">
+    </div>
+    <div class="ticker-track-wrapper">
+      <div class="ticker-track" id="tickerTrack">
+        <div class="game-card" style="font-size: 20px;">Cargando resultados de ESPN...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ESPN_API_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
+
+    function formatSpainTime(isoString) {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString('es-ES', {
+        weekday: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace('.', '');
+    }
+
+    async function fetchScores() {
+      try {
+        const response = await fetch(ESPN_API_URL);
+        const data = await response.json();
+        const events = data.events || [];
+
+        if (events.length === 0) {
+          renderMessage("No hay partidos programados en este momento.");
+          return;
+        }
+
+        const cardsHTML = events.map(event => {
+          const competition = event.competitions[0];
+          const homeTeam = competition.competitors.find(c => c.homeAway === 'home');
+          const awayTeam = competition.competitors.find(c => c.homeAway === 'away');
+
+          const statusType = event.status.type.state;
+          const isLive = statusType === 'in';
+          
+          let statusText = event.status.type.shortDetail || event.status.type.detail;
+
+          if (statusType === 'pre' && event.date) {
+            statusText = formatSpainTime(event.date);
+          }
+
+          return `
+            <div class="game-card">
+              <div class="team">
+                <img src="${awayTeam.team.logo}" alt="${awayTeam.team.abbreviation}">
+                <span class="team-name">${awayTeam.team.abbreviation}</span>
+                <span class="score">${awayTeam.score !== undefined ? awayTeam.score : ''}</span>
+              </div>
+              <span class="vs-separator">@</span>
+              <div class="team">
+                <img src="${homeTeam.team.logo}" alt="${homeTeam.team.abbreviation}">
+                <span class="team-name">${homeTeam.team.abbreviation}</span>
+                <span class="score">${homeTeam.score !== undefined ? homeTeam.score : ''}</span>
+              </div>
+              <span class="game-status ${isLive ? 'live' : ''}">${statusText}</span>
+            </div>
+          `;
+        }).join('');
+
+        const track = document.getElementById('tickerTrack');
+        track.innerHTML = cardsHTML + cardsHTML;
+
+      } catch (error) {
+        console.error('Error al obtener datos de ESPN:', error);
+      }
+    }
+
+    function renderMessage(msg) {
+      document.getElementById('tickerTrack').innerHTML = `<div class="game-card" style="font-size: 20px;">${msg}</div>`;
+    }
+
+    fetchScores();
+    setInterval(fetchScores, 30000);
+  </script>
+</body>
+</html>
