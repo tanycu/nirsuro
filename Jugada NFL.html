@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NFL Jugada a Jugada · OBS</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef2f7;
+      --panel: #ffffff;
+      --panel2: #f1f5f9;
+      --border: #d3dce8;
+      --text: #0f172a;
+      --muted: #5b6b82;
+      --accent: #2563eb;
+      --accent2: #15803d;
+      --danger: #dc2626;
+      --hover: #e3eaf4;
+      --active: #dbe7fb;
+      --yard: #1e3a2f;
+      --line: #c8d4e8;
+      --hash: #6b7c95;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 12px 18px;
+      background: linear-gradient(90deg, #ffffff, #eef2f7);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    header h1 span { color: var(--accent); }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      flex: 1;
+    }
+
+    select, input, button {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    select:focus, input:focus { border-color: var(--accent); }
+
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      border-color: transparent;
+      font-weight: 600;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    button:hover { background: #1d4ed8; }
+    #loadBtn { color: #fff; }
+    button:active { transform: scale(0.97); }
+    button.secondary { background: var(--panel2); border-color: var(--border); }
+    button.secondary:hover { background: var(--hover); }
+
+    .status {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    .status.live { color: var(--accent2); }
+    .status.error { color: var(--danger); }
+
+    main {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 0;
+      flex: 1;
+      min-height: 0;
+    }
+
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* —— Lista de jugadas —— */
+    .plays-panel {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .plays-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .plays-list {
+      overflow-y: auto;
+      flex: 1;
+      padding: 8px;
+    }
+
+    .play-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: var(--panel2);
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .play-item:hover { border-color: var(--accent); background: var(--hover); }
+    .play-item.active {
+      border-color: var(--accent);
+      background: var(--active);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    .play-item .meta {
+      display: flex;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+
+    .play-item .meta .qtr {
+      background: #dbe3ee;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .play-item .meta .score-play {
+      color: var(--accent2);
+      font-weight: 700;
+    }
+
+    .play-item .text {
+      font-size: 0.88rem;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .drive-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 10px 8px 4px;
+      font-weight: 600;
+    }
+
+    /* —— Visualización —— */
+    .viz-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: var(--bg);
+    }
+
+    .scoreboard {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      padding: 14px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .team {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 140px;
+    }
+
+    .team.home { flex-direction: row-reverse; text-align: right; }
+
+    .team img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      background: rgba(0,0,0,0.05);
+      border-radius: 8px;
+      padding: 2px;
+    }
+
+    .team .name {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .team .score {
+      font-size: 1.8rem;
+      font-weight: 800;
+      min-width: 40px;
+    }
+
+    .game-clock {
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .game-clock .clock {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* Campo — proporciones NFL reales ≈ 120 yd × 53.3 yd → ratio 2.25:1 */
+    .field-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 16px;
+      position: relative;
+      min-height: 260px;
+      background: #dfe6ef;
+      overflow: hidden;
+    }
+
+    .field-svg {
+      display: block;
+      width: 100%;
+      max-width: 1100px;
+      height: auto;
+      min-height: 240px;
+      aspect-ratio: 1200 / 533;
+      border-radius: 4px;
+      box-shadow: 0 8px 24px rgba(15,23,42,0.28);
+      background: #0a1f12;
+    }
+
+    /* Explicación */
+    .explanation {
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      padding: 16px 22px;
+      min-height: 110px;
+    }
+
+    .explanation .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .explanation .play-text {
+      font-size: 1.05rem;
+      line-height: 1.45;
+      font-weight: 500;
+    }
+
+    .explanation .details {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .explanation .details span {
+      background: var(--panel2);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      gap: 12px;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .empty svg { opacity: 0.4; }
+
+    /* Loading */
+    .loader {
+      width: 28px;
+      height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+
+    /* Compact: solo reduce padding, la lista de jugadas SIEMPRE visible */
+    body.compact-mode header { padding: 8px 12px; }
+    body.compact-mode .scoreboard { padding: 8px 14px; }
+    body.compact-mode .explanation { padding: 10px 16px; min-height: 80px; }
+    body.compact-mode .plays-panel { min-width: 280px; }
+
+    .drive-group {
+      margin-bottom: 6px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel2);
+    }
+    .drive-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: var(--panel2);
+      border: none;
+      border-bottom: 1px solid transparent;
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .drive-toggle:hover { background: var(--hover); }
+    .drive-group.open .drive-toggle {
+      border-bottom-color: var(--border);
+      background: var(--hover);
+    }
+    .drive-chevron {
+      display: inline-block;
+      font-size: 0.65rem;
+      transition: transform 0.15s ease;
+      color: var(--muted);
+      width: 12px;
+    }
+    .drive-group.open .drive-chevron {
+      transform: rotate(90deg);
+      color: var(--accent);
+    }
+    .drive-title { flex: 1; }
+    .drive-count {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .drive-plays { display: none; padding: 6px; }
+    .drive-group.open .drive-plays { display: block; }
+    .drive-plays .play-item { margin-bottom: 4px; }
+    .drive-plays .play-item:last-child { margin-bottom: 0; }
+
+
+    .games-strip-wrap {
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .games-strip {
+      display: flex;
+      gap: 8px;
+      padding: 10px 14px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #b6c2d2 transparent;
+    }
+    .game-chip {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      min-width: 170px;
+      color: var(--text);
+      font-size: 0.82rem;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .game-chip:hover { border-color: var(--accent); background: var(--hover); }
+    .game-chip.active {
+      border-color: var(--accent);
+      background: var(--active);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+    .game-chip img {
+      width: 28px; height: 28px;
+      object-fit: contain;
+      background: rgba(0,0,0,0.04);
+      border-radius: 4px;
+    }
+    .game-chip .vs { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+    .game-chip .meta-chip { display: flex; flex-direction: column; gap: 2px; }
+    .game-chip .status-chip { font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
+    .game-chip .status-chip.live { color: var(--accent2); font-weight: 700; }
+    .game-chip .score-chip { font-size: 0.78rem; color: var(--muted); }
+
+    /* ═════════ Mejoras ═════════ */
+    main { grid-template-rows: minmax(0, 1fr); }
+    .viz-panel { overflow-y: auto; }
+    .plays-list, .viz-panel, .games-strip { scrollbar-width: thin; scrollbar-color: #b6c2d2 transparent; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button:disabled { opacity: 0.4; cursor: default; transform: none; }
+    button.secondary:disabled:hover { background: var(--panel2); }
+
+    .status.live::before {
+      content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--accent2); margin-right: 6px; vertical-align: middle;
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse { 50% { opacity: 0.25; } }
+
+    .plays-header .head-right { display: flex; align-items: center; gap: 8px; }
+    .chip-btn { padding: 3px 9px; font-size: 0.72rem; border-radius: 999px; }
+    .chip-btn[aria-pressed="true"], .chip-btn.on { background: var(--accent2); color: #fff; border-color: transparent; }
+    .chip-btn[aria-pressed="true"]:hover, .chip-btn.on:hover { background: #166534; }
+
+    .play-item.is-score { border-left: 3px solid var(--accent2); }
+    .only-scores .drive-group:not(.has-score) { display: none; }
+    .only-scores .play-item:not(.is-score) { display: none; }
+    .only-scores .drive-plays { display: block; }
+
+    .label-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+    .explanation .label-row .label { margin: 0; }
+    .play-nav { display: flex; align-items: center; gap: 6px; }
+    .play-nav button { padding: 4px 10px; font-size: 0.8rem; }
+    .play-nav #navPos { font-size: 0.78rem; color: var(--muted); min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+
+    .explanation .details .poss { display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
+    .explanation .details .poss i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(15,23,42,0.35); }
+
+    .legend { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.75rem; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend .sw { display: inline-block; width: 18px; height: 0; border-top: 3px solid; }
+    .legend .sw.los { border-color: #facc15; border-top-style: dashed; }
+    .legend .sw.fd { border-color: #38bdf8; }
+    .legend .sw.tr { border-color: var(--accent); border-top-width: 5px; border-radius: 3px; }
+
+    .score { font-variant-numeric: tabular-nums; }
+
+    @media (max-width: 900px) {
+      html, body { height: auto; }
+      main { grid-template-rows: none; }
+      .viz-panel { order: -1; overflow: visible; }
+      .plays-panel { max-height: 50vh; border-right: none; border-top: 1px solid var(--border); }
+      .scoreboard { gap: 12px; padding: 10px; }
+      .team { min-width: 0; }
+      .team img { width: 36px; height: 36px; }
+      header .status { margin-left: 0; width: 100%; }
+      .field-wrap { padding: 8px; min-height: 0; }
+      .field-svg { min-height: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .field-svg *, .status.live::before { animation-duration: 0.01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+      .play-item, .game-chip, button { transition: none; }
+    }
+    /* ═════════ Cinta de partidos compacta (caben 16 en 1920 px) ═════════ */
+    .games-strip { gap: 6px; padding: 8px 14px; }
+    .game-chip {
+      flex: 1 1 0; min-width: 104px; max-width: 200px;
+      flex-direction: column; align-items: stretch; gap: 4px;
+      padding: 6px 8px; font-size: 0.8rem; text-align: left;
+    }
+    .game-chip .chip-row { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+    .game-chip .chip-row img { width: 20px; height: 20px; }
+    .game-chip .chip-row .chip-abbr { flex: 1; min-width: 0; }
+    .game-chip .chip-row .chip-score { font-variant-numeric: tabular-nums; }
+    .game-chip .chip-row.lose { opacity: 0.55; }
+    .game-chip .status-chip {
+      font-size: 0.68rem; text-align: center; padding-top: 3px; border-top: 1px solid var(--border);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>NFL <span>Jugada a jugada</span></h1>
+    <div class="controls">
+      <select id="gameSelect" style="display:none">
+        <option value="">— Cargando partidos… —</option>
+      </select>
+      <input type="text" id="gameIdInput" placeholder="o ID del partido (ej. 401671801)" style="width:180px" />
+      <button id="loadBtn">Cargar</button>
+      <button class="secondary" id="refreshBtn" title="Actualizar jugadas">↻</button>
+      <button class="secondary" id="overlayBtn" title="Modo compacto">Compacto</button>
+    </div>
+    <div class="status" id="status">Listo</div>
+  </header>
+
+  <div class="games-strip-wrap">
+    <div class="games-strip" id="gamesStrip">
+      <div class="game-chip" style="opacity:0.6;cursor:default">Cargando partidos…</div>
+    </div>
+  </div>
+
+  <main>
+    <aside class="plays-panel">
+      <div class="plays-header">
+        <span>Jugadas</span>
+        <div class="head-right">
+          <button type="button" class="secondary chip-btn" id="scoreFilterBtn" aria-pressed="false" title="Mostrar solo anotaciones">★ Anotaciones</button>
+          <span id="playCount">0</span>
+        </div>
+      </div>
+      <div class="plays-list" id="playsList">
+        <div class="empty">
+          <p>Elige un partido en la cinta superior<br>para ver las jugadas</p>
+        </div>
+      </div>
+    </aside>
+
+    <section class="viz-panel">
+      <div class="scoreboard" id="scoreboard" style="display:none">
+        <div class="team away">
+          <img id="awayLogo" alt="Visitante" onerror="this.style.display='none'" />
+          <div>
+            <div class="name" id="awayName">Away</div>
+          </div>
+          <div class="score" id="awayScore">0</div>
+        </div>
+        <div class="game-clock">
+          <div class="clock" id="clock">—</div>
+          <div id="period">Q1</div>
+        </div>
+        <div class="team home">
+          <img id="homeLogo" alt="Local" onerror="this.style.display='none'" />
+          <div>
+            <div class="name" id="homeName">Home</div>
+          </div>
+          <div class="score" id="homeScore">0</div>
+        </div>
+      </div>
+
+      <div class="field-wrap" id="fieldWrap">
+        <div class="empty" id="fieldEmpty">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <line x1="12" y1="4" x2="12" y2="20"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+          </svg>
+          <p>Haz clic en una jugada de la lista<br>para verla en el campo</p>
+        </div>
+        <!-- SVG field injected by JS -->
+      </div>
+
+      <div class="explanation" id="explanation" style="display:none">
+        <div class="label-row">
+          <div class="label">Qué ha pasado</div>
+          <div class="play-nav">
+            <button type="button" class="secondary" id="prevBtn" title="Jugada anterior (←)" disabled>◀</button>
+            <span id="navPos"></span>
+            <button type="button" class="secondary" id="nextBtn" title="Jugada siguiente (→)" disabled>▶</button>
+            <button type="button" class="secondary chip-btn" id="followBtn" aria-pressed="false" title="Saltar siempre a la última jugada">En directo</button>
+          </div>
+        </div>
+        <div class="play-text" id="playText" aria-live="polite"></div>
+        <div class="details" id="playDetails"></div>
+        <div class="legend">
+          <span><i class="sw los"></i>Línea de scrimmage</span>
+          <span><i class="sw fd"></i>Primer down</span>
+          <span><i class="sw tr"></i>Recorrido de la jugada</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // ESPN endpoints (CORS abierto)
+    // ─────────────────────────────────────────────
+    const SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard";
+    const PLAYBYPLAY = (id) => `https://cdn.espn.com/core/nfl/playbyplay?xhr=1&gameId=${id}`;
+    const SUMMARY = (id) => `https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=${id}`;
+
+    // Estado
+    let currentGameId = null;
+    let allPlays = [];
+    let teams = { home: null, away: null };
+    let autoRefresh = null;
+    let loadToken = 0;          // evita que una respuesta antigua pise a una nueva
+    let selectedIdx = null;     // jugada seleccionada
+    let followLive = false;     // saltar siempre a la última jugada
+    let scoresOnly = false;     // filtro de anotaciones
+
+    // DOM
+    const $ = (s) => document.querySelector(s);
+    const statusEl = $("#status");
+    const playsList = $("#playsList");
+    const gameSelect = $("#gameSelect");
+    const FIELD_EMPTY_HTML = document.getElementById("fieldWrap").innerHTML;
+
+    function setStatus(msg, type = "") {
+      statusEl.textContent = msg;
+      statusEl.className = "status " + type;
+    }
+
+    // ─────────────────────────────────────────────
+    // Cargar lista de partidos (hoy + recientes)
+    // ─────────────────────────────────────────────
+    async function loadScoreboard() {
+      setStatus("Cargando partidos…");
+      try {
+        // Hoy
+        const res = await fetch(SCOREBOARD);
+        const data = await res.json();
+        let events = data.events || [];
+
+        // Si no hay partidos hoy, probar ayer y hace 2 días
+        if (events.length === 0) {
+          const d = new Date();
+          for (let i = 1; i <= 4 && events.length === 0; i++) {
+            d.setDate(d.getDate() - 1);
+            const dateStr = d.toISOString().slice(0, 10).replace(/-/g, "");
+            const r2 = await fetch(`${SCOREBOARD}?dates=${dateStr}`);
+            const d2 = await r2.json();
+            events = d2.events || [];
+          }
+        }
+
+        const gameSelect = document.getElementById('gameSelect');
+        if (gameSelect) gameSelect.innerHTML = '<option value="">—</option>';
+        const strip = document.getElementById("gamesStrip");
+        if (!strip) { setStatus("Error: falta cinta de partidos", "error"); return; }
+        strip.innerHTML = "";
+
+        if (!events.length) {
+          strip.innerHTML = '<div class="game-chip" style="opacity:0.6;cursor:default">Sin partidos recientes</div>';
+          setStatus("Sin partidos recientes");
+        } else {
+          events.forEach((e) => {
+            const opt = document.createElement("option");
+            opt.value = e.id;
+            opt.textContent = e.name || e.id;
+            if (gameSelect) gameSelect.appendChild(opt);
+
+            const comps = (e.competitions && e.competitions[0] && e.competitions[0].competitors) || [];
+            const home = comps.find((c) => c.homeAway === "home") || comps[0];
+            const away = comps.find((c) => c.homeAway === "away") || comps[1];
+            const homeAbbr = (home && home.team && home.team.abbreviation) || "?";
+            const awayAbbr = (away && away.team && away.team.abbreviation) || "?";
+            const homeLogo = pickLogo(home && home.team) || "";
+            const awayLogo = pickLogo(away && away.team) || "";
+            const homeScore = home && home.score != null ? home.score : "-";
+            const awayScore = away && away.score != null ? away.score : "-";
+            const st = (e.status && e.status.type) || {};
+            const stName = st.description || st.detail || st.name || "";
+            const isLive = st.state === "in" || (st.name || "").includes("IN_PROGRESS");
+
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "game-chip";
+            chip.dataset.gameId = e.id;
+            const final = st.state === "post";
+            const aN = Number(awayScore), hN = Number(homeScore);
+            const awayLose = (final || isLive) && !isNaN(aN) && !isNaN(hN) && aN < hN;
+            const homeLose = (final || isLive) && !isNaN(aN) && !isNaN(hN) && hN < aN;
+            const shortSt = st.shortDetail || stName;
+            const row = function (abbr, logo, score, lose) {
+              return '<div class="chip-row' + (lose ? ' lose' : '') + '">' +
+                (logo ? '<img src="' + logo + '" alt="" />' : '') +
+                '<span class="chip-abbr">' + escapeHtml(abbr) + '</span>' +
+                '<span class="chip-score">' + escapeHtml(String(score)) + '</span></div>';
+            };
+            chip.title = (e.name || (awayAbbr + " @ " + homeAbbr)) + " · " + stName;
+            chip.innerHTML =
+              row(awayAbbr, awayLogo, awayScore, awayLose) +
+              row(homeAbbr, homeLogo, homeScore, homeLose) +
+              '<span class="status-chip' + (isLive ? ' live' : '') + '">' +
+                (isLive ? '● ' : '') + escapeHtml(shortSt) +
+              '</span>';
+            chip.addEventListener("click", function () {
+              document.querySelectorAll(".game-chip").forEach((c) => c.classList.remove("active"));
+              chip.classList.add("active");
+              document.getElementById("gameIdInput").value = e.id;
+              loadGame(e.id);
+            });
+            strip.appendChild(chip);
+          });
+          setStatus(events.length + " partidos");
+        }
+      } catch (err) {
+        console.error(err);
+        const strip = document.getElementById("gamesStrip");
+        if (strip) strip.innerHTML = '<div class="game-chip" style="opacity:0.6;cursor:default">Error al cargar partidos</div>';
+        setStatus("Error al cargar partidos: " + (err && err.message ? err.message : err), "error");
+      }
+    }
+
+    // ─────────────────────────────────────────────
+    // Cargar play-by-play de un partido
+    // ─────────────────────────────────────────────
+    async function loadGame(gameId) {
+      if (!gameId) return;
+      const sameGame = currentGameId === gameId;
+      const token = ++loadToken;
+      currentGameId = gameId;
+      setStatus("Cargando jugadas…", "live");
+      if (!sameGame) {
+        // Partido nuevo: limpiar selección, campo y explicación
+        selectedIdx = null;
+        playsList.innerHTML = '<div class="empty"><div class="loader"></div></div>';
+        $("#fieldWrap").innerHTML = FIELD_EMPTY_HTML;
+        $("#explanation").style.display = "none";
+        updateNav();
+      }
+
+      try {
+        const res = await fetch(PLAYBYPLAY(gameId));
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const raw = await res.json();
+        if (token !== loadToken) return; // llegó otra petición más reciente
+        const gp = raw.gamepackageJSON || raw;
+
+        // Header / equipos
+        const header = gp.header;
+        const comps = header?.competitions?.[0]?.competitors || [];
+        const home = comps.find((c) => c.homeAway === "home");
+        const away = comps.find((c) => c.homeAway === "away");
+        teams = { home, away };
+
+        // Scoreboard
+        $("#scoreboard").style.display = "flex";
+        $("#homeName").textContent = home?.team?.abbreviation || home?.team?.shortDisplayName || "LOCAL";
+        $("#awayName").textContent = away?.team?.abbreviation || away?.team?.shortDisplayName || "VISITANTE";
+        $("#homeScore").textContent = home?.score ?? "0";
+        $("#awayScore").textContent = away?.score ?? "0";
+        const homeLogoUrl = pickLogo(home?.team);
+        const awayLogoUrl = pickLogo(away?.team);
+        const homeImg = $("#homeLogo");
+        const awayImg = $("#awayLogo");
+        homeImg.style.display = homeLogoUrl ? "block" : "none";
+        awayImg.style.display = awayLogoUrl ? "block" : "none";
+        homeImg.src = homeLogoUrl || "";
+        awayImg.src = awayLogoUrl || "";
+        homeImg.alt = home?.team?.displayName || home?.team?.abbreviation || "Local";
+        awayImg.alt = away?.team?.displayName || away?.team?.abbreviation || "Visitante";
+
+        const status = header?.competitions?.[0]?.status;
+        $("#clock").textContent = status?.displayClock || status?.type?.detail || "—";
+        $("#period").textContent = status?.type?.detail || status?.period || "";
+
+        // Extraer jugadas de drives
+        allPlays = [];
+        const drives = gp.drives?.previous || gp.drives?.current || [];
+        const driveList = Array.isArray(drives) ? drives : (drives?.items || []);
+
+        driveList.forEach((drive, di) => {
+          const plays = drive.plays || [];
+          plays.forEach((p) => {
+            allPlays.push({
+              ...p,
+              driveIndex: di,
+              driveResult: drive.displayResult || drive.result || "",
+              teamId: drive.team?.id || p.teamParticipants?.find((t) => t.type === "offense")?.id,
+            });
+          });
+        });
+
+        // Ordenar por sequenceNumber si existe
+        allPlays.sort((a, b) => {
+          const sa = parseInt(a.sequenceNumber || a.id || 0, 10);
+          const sb = parseInt(b.sequenceNumber || b.id || 0, 10);
+          return sa - sb;
+        });
+
+        renderPlaysList(sameGame);
+        setStatus(`${allPlays.length} jugadas · ${teams.away?.team?.abbreviation || "?"} @ ${teams.home?.team?.abbreviation || "?"}`, "live");
+        document.querySelectorAll(".game-chip").forEach((c) => {
+          c.classList.toggle("active", c.dataset.gameId === String(gameId));
+        });
+
+        // Auto-refresh si el partido está en vivo
+        if (autoRefresh) clearInterval(autoRefresh);
+        const isLive = status?.type?.name === "STATUS_IN_PROGRESS" || status?.type?.state === "in";
+        if (isLive) {
+          autoRefresh = setInterval(() => loadGame(gameId), 20000);
+        }
+
+        // Mantener la selección tras refrescar, o seguir la última jugada
+        if (followLive && allPlays.length && (isLive || selectedIdx == null)) {
+          selectPlay(allPlays.length - 1, true);
+        } else if (selectedIdx != null && allPlays[selectedIdx]) {
+          const cur = document.querySelector('.play-item[data-idx="' + selectedIdx + '"]');
+          if (cur) cur.classList.add("active");
+          applyPlayScore(allPlays[selectedIdx]);
+        }
+        updateNav();
+      } catch (err) {
+        if (token !== loadToken) return;
+        setStatus("Error: " + err.message, "error");
+        // Si ya había jugadas (fallo al refrescar) no borramos la lista
+        if (!sameGame || !allPlays.length) {
+          playsList.innerHTML = `<div class="empty"><p>No se pudieron cargar las jugadas.<br>${escapeHtml(err.message)}</p></div>`;
+        }
+        console.error(err);
+      }
+    }
+
+    function renderPlaysList(preserveOpen) {
+      // Recordar qué series estaban abiertas para no perderlas al refrescar
+      const prevOpen = preserveOpen
+        ? new Set(Array.from(document.querySelectorAll(".drive-group.open")).map((g) => g.dataset.drive))
+        : null;
+      const prevScroll = preserveOpen ? playsList.scrollTop : 0;
+      if (!allPlays.length) {
+        playsList.innerHTML = '<div class="empty"><p>Sin jugadas disponibles</p></div>';
+        document.getElementById("playCount").textContent = "0";
+        return;
+      }
+
+      document.getElementById("playCount").textContent = allPlays.length;
+
+      // Agrupar por serie (drive)
+      const groups = [];
+      let cur = null;
+      allPlays.forEach(function (p, i) {
+        if (!cur || cur.driveIndex !== p.driveIndex) {
+          cur = {
+            driveIndex: p.driveIndex,
+            teamId: p.teamId,
+            driveResult: p.driveResult || "",
+            plays: []
+          };
+          groups.push(cur);
+        }
+        cur.plays.push({ play: p, idx: i });
+      });
+
+      let html = "";
+      groups.forEach(function (g, gi) {
+        const teamAbbr = getTeamAbbr(g.teamId) || "";
+        const n = g.plays.length;
+        const result = g.driveResult ? " · " + escapeHtml(g.driveResult) : "";
+        // Por defecto: última serie abierta, el resto cerradas
+        const open = gi === groups.length - 1 || (prevOpen ? prevOpen.has(String(gi)) : false);
+        const hasScore = g.plays.some(function (it) { return it.play.scoringPlay || it.play.isScore; });
+
+        html += '<div class="drive-group' + (open ? " open" : "") + (hasScore ? " has-score" : "") + '" data-drive="' + gi + '">';
+        html += '<button type="button" class="drive-toggle" aria-expanded="' + open + '" onclick="toggleDrive(' + gi + ')">';
+        html += '<span class="drive-chevron">▶</span>';
+        html += '<span class="drive-title">Serie ' + (g.driveIndex + 1);
+        if (teamAbbr) html += ' · ' + escapeHtml(teamAbbr);
+        html += result + '</span>';
+        html += '<span class="drive-count">' + n + ' jugada' + (n !== 1 ? 's' : '') + '</span>';
+        html += '</button>';
+        html += '<div class="drive-plays">';
+
+        g.plays.forEach(function (item) {
+          const p = item.play;
+          const i = item.idx;
+          const qtr = p.period && p.period.number ? ("C" + p.period.number) : "";
+          const clock = (p.clock && p.clock.displayValue) || "";
+          const isScore = p.scoringPlay || p.isScore;
+          const short = (p.start && (p.start.shortDownDistanceText || p.start.downDistanceText)) || "";
+          const text = traducirJugada(p.text || (p.type && p.type.text) || "—");
+
+          html += '<div class="play-item' + (isScore ? ' is-score' : '') + '" data-idx="' + i + '" role="button" tabindex="0" onclick="selectPlay(' + i + ')">';
+          html += '<div class="meta">';
+          if (qtr) html += '<span class="qtr">' + qtr + '</span>';
+          if (clock) html += '<span>' + clock + '</span>';
+          if (short) html += '<span>' + escapeHtml(short) + '</span>';
+          if (isScore) html += '<span class="score-play">ANOTACIÓN</span>';
+          html += '</div>';
+          html += '<div class="text" title="' + escapeHtml(text).replace(/"/g, "&quot;") + '">' + escapeHtml(text) + '</div>';
+          html += '</div>';
+        });
+
+        html += '</div></div>';
+      });
+
+      playsList.innerHTML = html;
+      if (prevScroll) playsList.scrollTop = prevScroll;
+      applyFilter();
+    }
+
+    window.toggleDrive = function (gi) {
+      const el = document.querySelector('.drive-group[data-drive="' + gi + '"]');
+      if (el) {
+        el.classList.toggle("open");
+        const b = el.querySelector(".drive-toggle");
+        if (b) b.setAttribute("aria-expanded", String(el.classList.contains("open")));
+      }
+    };
+
+
+
+
+
+    function traducirTipo(t) {
+      if (!t) return "";
+      const map = {
+        "Rush": "Carrera",
+        "Pass Reception": "Recepción",
+        "Pass Incompletion": "Pase incompleto",
+        "Passing Touchdown": "Touchdown de pase",
+        "Rushing Touchdown": "Touchdown de carrera",
+        "Sack": "Captura (sack)",
+        "Penalty": "Penalización",
+        "Punt": "Despeje (punt)",
+        "Kickoff": "Saque inicial",
+        "Kickoff Return (Offense)": "Devolución de saque",
+        "Field Goal Good": "Field goal bueno",
+        "Field Goal Missed": "Field goal fallado",
+        "Interception": "Intercepción",
+        "Fumble Recovery (Opponent)": "Recuperación de fumble (rival)",
+        "Fumble Recovery (Own)": "Recuperación de fumble (propia)",
+        "Timeout": "Tiempo muerto",
+        "End Period": "Fin del cuarto",
+        "End of Half": "Fin de la primera mitad",
+        "End of Game": "Fin del partido",
+        "Pass": "Pase",
+        "Incomplete Pass": "Pase incompleto",
+        "Two-point Conversion": "Conversión de 2 puntos",
+        "Extra Point Good": "Punto extra bueno",
+        "Extra Point Missed": "Punto extra fallado",
+        "Blocked Punt": "Punt bloqueado",
+        "Blocked Field Goal": "Field goal bloqueado",
+        "Safety": "Safety",
+      };
+      return map[t] || t;
+    }
+
+    function traducirDown(s) {
+      if (!s) return "";
+      return s
+        .replace(/1st/g, "1º")
+        .replace(/2nd/g, "2º")
+        .replace(/3rd/g, "3º")
+        .replace(/4th/g, "4º")
+        .replace(/&/g, "y");
+    }
+
+    function traducirJugada(text) {
+      if (!text) return "";
+      let s = String(text);
+
+      // Frases y patrones frecuentes (orden: más específicos primero)
+      const reps = [
+        [/TOUCHDOWN/gi, "TOUCHDOWN"],
+        [/INTERCEPTED by/gi, "INTERCEPTADO por"],
+        [/intercepted by/gi, "interceptado por"],
+        [/INTERCEPTION/gi, "INTERCEPCIÓN"],
+        [/FUMBLES/gi, "SUELTA EL BALÓN (fumble)"],
+        [/fumbles/gi, "suelta el balón (fumble)"],
+        [/RECOVERED by/gi, "RECUPERADO por"],
+        [/recovered by/gi, "recuperado por"],
+        [/SAFETY/gi, "SAFETY"],
+        [/TWO-POINT CONVERSION ATTEMPT/gi, "INTENTO DE CONVERSIÓN DE 2 PUNTOS"],
+        [/two-point conversion/gi, "conversión de 2 puntos"],
+        [/EXTRA POINT IS GOOD/gi, "PUNTO EXTRA BUENO"],
+        [/extra point is GOOD/gi, "punto extra bueno"],
+        [/extra point is No Good/gi, "punto extra fallado"],
+        [/field goal is GOOD/gi, "field goal BUENO"],
+        [/field goal is No Good/gi, "field goal FALLADO"],
+        [/Field Goal/gi, "Field goal"],
+        [/\bGOOD\b/g, "BUENO"],
+        [/\bNo Good\b/gi, "Fallado"],
+        [/punts?\b/gi, "despeja (punt)"],
+        [/punt return/gi, "devolución de punt"],
+        [/kickoff/gi, "saque inicial"],
+        [/kicks\b/gi, "golpea"],
+        [/Touchback/gi, "Touchback"],
+        [/out of bounds/gi, "fuera de banda"],
+        [/pushed ob\b/gi, "empujado fuera de banda"],
+        [/ran ob\b/gi, "sale fuera de banda"],
+        [/to the end zone/gi, "a la zona de anotación"],
+        [/for a (\d+) yard[s]? loss/gi, "para una pérdida de $1 yardas"],
+        [/for no gain/gi, "sin ganancia"],
+        [/for (\d+) yard[s]?/gi, "para $1 yardas"],
+        [/pass incomplete(?: short| deep)?(?: left| right| middle)?/gi, "pase incompleto"],
+        [/pass incomplete/gi, "pase incompleto"],
+        [/incomplete/gi, "incompleto"],
+        [/pass deep left to/gi, "pase profundo a la izquierda para"],
+        [/pass deep right to/gi, "pase profundo a la derecha para"],
+        [/pass deep middle to/gi, "pase profundo por el centro para"],
+        [/pass short left to/gi, "pase corto a la izquierda para"],
+        [/pass short right to/gi, "pase corto a la derecha para"],
+        [/pass short middle to/gi, "pase corto por el centro para"],
+        [/pass deep to/gi, "pase profundo para"],
+        [/pass short to/gi, "pase corto para"],
+        [/pass to/gi, "pase para"],
+        [/scrambles?\b/gi, "escapa del pocket"],
+        [/sacked(?: at)?/gi, "capturado (sack)"],
+        [/right guard/gi, "por el guardia derecho"],
+        [/left guard/gi, "por el guardia izquierdo"],
+        [/right tackle/gi, "por el tackle derecho"],
+        [/left tackle/gi, "por el tackle izquierdo"],
+        [/up the middle/gi, "por el centro"],
+        [/right end/gi, "por el extremo derecho"],
+        [/left end/gi, "por el extremo izquierdo"],
+        [/\brushes\b/gi, "carrera"],
+        [/\brush\b/gi, "carrera"],
+        [/Timeout(?: #?\d+)? by/gi, "Tiempo muerto de"],
+        [/timeout at/gi, "tiempo muerto a"],
+        [/Two-Minute Warning/gi, "Aviso de dos minutos"],
+        [/END QUARTER/gi, "FIN DEL CUARTO"],
+        [/End of Quarter/gi, "Fin del cuarto"],
+        [/END OF QUARTER/gi, "FIN DEL CUARTO"],
+        [/END GAME/gi, "FINAL DEL PARTIDO"],
+        [/End of Game/gi, "Final del partido"],
+        [/END OF HALF/gi, "FIN DE LA PRIMERA MITAD"],
+        [/End of Half/gi, "Fin de la primera mitad"],
+        [/Penalty on/gi, "Penalización a"],
+        [/penalty on/gi, "penalización a"],
+        [/enforced at/gi, "aplicada en"],
+        [/declined/gi, "rechazada"],
+        [/offsetting/gi, "se anulan"],
+        [/False Start/gi, "Salida en falso"],
+        [/Offensive Holding/gi, "Sujeción ofensiva"],
+        [/Defensive Holding/gi, "Sujeción defensiva"],
+        [/Defensive Pass Interference/gi, "Interferencia de pase defensiva"],
+        [/Offensive Pass Interference/gi, "Interferencia de pase ofensiva"],
+        [/Unnecessary Roughness/gi, "Dureza innecesaria"],
+        [/Neutral Zone Infraction/gi, "Infracción de zona neutral"],
+        [/Delay of Game/gi, "Retraso de juego"],
+        [/Illegal Formation/gi, "Formación ilegal"],
+        [/Illegal Shift/gi, "Movimiento ilegal"],
+        [/Illegal Block/gi, "Bloqueo ilegal"],
+        [/Face Mask/gi, "Agarrón de careta"],
+        [/Roughing the Passer/gi, "Golpe al pasador"],
+        [/Encroachment/gi, "Encroachment"],
+        [/no play/gi, "jugada anulada"],
+        [/challenged/gi, "revisión de jugada"],
+        [/the ruling on the field/gi, "la decisión en el campo"],
+        [/stands\b/gi, "se mantiene"],
+        [/is overturned/gi, "se revoca"],
+        [/reversed/gi, "revertida"],
+        [/to the ([A-Z]{2,3}) (\d+)/g, "hasta la yarda $2 de $1"],
+        [/from the ([A-Z]{2,3}) (\d+)/g, "desde la yarda $2 de $1"],
+        [/at the ([A-Z]{2,3}) (\d+)/g, "en la yarda $2 de $1"],
+        [/to ([A-Z]{2,3}) (\d+)/g, "hasta $1 $2"],
+        [/from ([A-Z]{2,3}) (\d+)/g, "desde $1 $2"],
+        [/\byards?\b/gi, "yardas"],
+        [/\byd\b/gi, "yd"],
+        [/\bPenalty\b/g, "Penalización"],
+        [/\bPENALTY\b/g, "PENALIZACIÓN"],
+        [/\bpass\b/gi, "pase"],
+        [/\bto\b/g, "para"],
+        [/\bfor\b/g, "para"],
+        [/\bat\b/g, "en"],
+        [/\bfrom\b/g, "desde"],
+        [/\band\b/g, "y"],
+        [/\bthe\b/gi, ""],
+        [/\s{2,}/g, " "],
+      ];
+
+      for (let i = 0; i < reps.length; i++) {
+        s = s.replace(reps[i][0], reps[i][1]);
+      }
+      return s.replace(/\s{2,}/g, " ").trim();
+    }
+
+
+
+    function pickLogo(team) {
+      if (!team) return "";
+      // ESPN a veces da logo string, a veces array logos[]
+      if (typeof team.logo === "string" && team.logo) return team.logo;
+      const logos = team.logos || [];
+      const prefer = ["scoreboard", "default", "full"];
+      for (const rel of prefer) {
+        const found = logos.find((l) => (l.rel || []).includes(rel) && l.href);
+        if (found) return found.href;
+      }
+      if (logos[0]?.href) return logos[0].href;
+      // Fallback por abreviatura
+      const abbr = (team.abbreviation || "").toLowerCase();
+      if (abbr) return `https://a.espncdn.com/i/teamlogos/nfl/500/${abbr}.png`;
+      return "";
+    }
+
+    function getTeamAbbr(id) {
+      if (!id) return "";
+      if (teams.home?.id == id || teams.home?.team?.id == id) return teams.home?.team?.abbreviation;
+      if (teams.away?.id == id || teams.away?.team?.id == id) return teams.away?.team?.abbreviation;
+      return "";
+    }
+
+    // Equipo que tiene el balón en una jugada (mismo criterio que el campo)
+    function getOffense(p) {
+      let id = null;
+      const off = (p.teamParticipants || []).find((x) => x.type === "offense");
+      if (off) id = off.id;
+      if (!id && p.start && p.start.team) id = p.start.team.id;
+      if (!id) id = p.teamId;
+      if (!id) return null;
+      const homeId = teams.home && (teams.home.id || (teams.home.team && teams.home.team.id));
+      const awayId = teams.away && (teams.away.id || (teams.away.team && teams.away.team.id));
+      let t = null, isHome = false;
+      if (String(id) === String(homeId)) { t = teams.home; isHome = true; }
+      else if (String(id) === String(awayId)) { t = teams.away; }
+      else return null;
+      const color = t && t.team && t.team.color ? "#" + t.team.color : (isHome ? "#1d4ed8" : "#b91c1c");
+      return { abbr: (t && t.team && t.team.abbreviation) || (isHome ? "LOCAL" : "VISIT."), color: color };
+    }
+
+    // Marcador / reloj / cuarto tal y como estaban en esa jugada
+    function applyPlayScore(p) {
+      if (p.homeScore != null) $("#homeScore").textContent = p.homeScore;
+      if (p.awayScore != null) $("#awayScore").textContent = p.awayScore;
+      if (p.clock?.displayValue) $("#clock").textContent = p.clock.displayValue;
+      if (p.period?.number) $("#period").textContent = `C${p.period.number}`;
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // ─────────────────────────────────────────────
+    // Seleccionar jugada → dibujar campo
+    // ─────────────────────────────────────────────
+    window.selectPlay = function (idx, fromFollow) {
+      if (!fromFollow && followLive) setFollow(false); // al elegir a mano se deja de seguir
+      selectedIdx = idx;
+      document.querySelectorAll(".play-item").forEach((el) => el.classList.remove("active"));
+      const item = document.querySelector(`.play-item[data-idx="${idx}"]`);
+      if (item) {
+        item.classList.add("active");
+        // Abrir la serie ANTES de hacer scroll (si estaba cerrada el elemento no tiene posición)
+        const group = item.closest(".drive-group");
+        if (group) {
+          group.classList.add("open");
+          const tg = group.querySelector(".drive-toggle");
+          if (tg) tg.setAttribute("aria-expanded", "true");
+        }
+        item.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+
+      const p = allPlays[idx];
+      if (!p) {
+        console.warn("Jugada no encontrada", idx);
+        return;
+      }
+
+      try { document.getElementById("fieldEmpty")?.remove(); } catch (e) {}
+      const expl = document.getElementById("explanation");
+      if (expl) expl.style.display = "block";
+      const rawText = p.text || p.type?.text || "Sin descripción";
+      $("#playText").textContent = traducirJugada(rawText);
+
+      // Detalles
+      const details = [];
+      if (p.type?.text) details.push(`Tipo: ${traducirTipo(p.type.text)}`);
+      if (p.statYardage != null) details.push(`${p.statYardage > 0 ? "+" : ""}${p.statYardage} yd`);
+      if (p.start?.downDistanceText) details.push(traducirDown(p.start.downDistanceText));
+      if (p.clock?.displayValue) details.push(`Reloj: ${p.clock.displayValue}`);
+      if (p.period?.number) details.push(`Cuarto ${p.period.number}`);
+      if (p.scoringPlay) details.push("¡Anotación!");
+      if (p.isTurnover) details.push("Pérdida de balón");
+      if (p.isPenalty) details.push("Penalización");
+      const off = getOffense(p);
+      const possHtml = off
+        ? `<span class="poss"><i style="background:${off.color}"></i>Posesión: ${escapeHtml(off.abbr)}</span>`
+        : "";
+      $("#playDetails").innerHTML = possHtml + details.map((d) => `<span>${escapeHtml(d)}</span>`).join("");
+
+      // Actualizar score del momento
+      applyPlayScore(p);
+      updateNav();
+
+      drawField(p);
+    };
+
+    // ─────────────────────────────────────────────
+    // Dibujar campo SVG — proporciones NFL reales
+    // 120 yd (10+100+10) × 53.3 yd  →  viewBox 1200×533
+    // ─────────────────────────────────────────────
+    // Dibujar campo SVG — logos en end zones + sin dibujo en pausas
+    // ─────────────────────────────────────────────
+    function drawField(play) {
+      try {
+        const wrap = document.getElementById("fieldWrap");
+        if (!wrap) return;
+
+        wrap.querySelectorAll("svg.field-svg").forEach((s) => s.remove());
+        const empty = document.getElementById("fieldEmpty");
+        if (empty) empty.remove();
+
+        const tipoRaw = (play.type && play.type.text) ? play.type.text : "";
+        const tipoLower = tipoRaw.toLowerCase();
+        const textoLow = (play.text || "").toLowerCase();
+
+        // Eventos de pausa: se dibuja el campo pero sin trayectoria, con etiqueta
+        let eventoEspecial = null;
+        if (tipoLower.includes("timeout") || textoLow.includes("timeout")) {
+          eventoEspecial = { titulo: "Tiempo muerto", icono: "⏸" };
+        } else if (tipoLower.includes("end of game") || textoLow.includes("end of game")) {
+          eventoEspecial = { titulo: "Final del partido", icono: "🏁" };
+        } else if (tipoLower.includes("end of half") || textoLow.includes("end of half")) {
+          eventoEspecial = { titulo: "Descanso", icono: "⏸" };
+        } else if (tipoLower.includes("end period") || textoLow.includes("end of quarter") || tipoLower === "end period") {
+          const q = play.period && play.period.number ? play.period.number : "";
+          eventoEspecial = { titulo: q ? ("Fin del cuarto " + q) : "Fin del cuarto", icono: "⏱" };
+        } else if (tipoLower.includes("two-minute") || textoLow.includes("two-minute")) {
+          eventoEspecial = { titulo: "Aviso de dos minutos", icono: "⏱" };
+        }
+
+        const Y = 10;
+        const W = 120 * Y;
+        const H = Math.round(53.3 * Y);
+        const EZ = 10 * Y;
+        const TOP = 16;
+        const FH = H - TOP * 2;
+
+        function clamp(v, d) {
+          const n = Number(v);
+          return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : d;
+        }
+
+        let startYard = clamp(play.start && play.start.yardLine, 50);
+        let endYard = clamp(
+          play.end && play.end.yardLine != null ? play.end.yardLine : play.start && play.start.yardLine,
+          startYard
+        );
+
+        const sYTE = play.start && play.start.yardsToEndzone;
+        const eYTE = play.end && play.end.yardsToEndzone;
+        if (startYard === endYard && sYTE != null && eYTE != null && sYTE !== eYTE) {
+          const delta = Number(sYTE) - Number(eYTE);
+          endYard = clamp(startYard + delta, startYard);
+        }
+
+        function yardToX(yard) {
+          return EZ + yard * Y;
+        }
+
+        const startX = yardToX(startYard);
+        const endX = yardToX(endYard);
+        const midY = H / 2;
+
+        const homeColor = (teams.home && teams.home.team && teams.home.team.color)
+          ? "#" + teams.home.team.color : "#1d4ed8";
+        const awayColor = (teams.away && teams.away.team && teams.away.team.color)
+          ? "#" + teams.away.team.color : "#b91c1c";
+        const homeAbbr = (teams.home && teams.home.team && teams.home.team.abbreviation) || "LOCAL";
+        const awayAbbr = (teams.away && teams.away.team && teams.away.team.abbreviation) || "VISIT.";
+
+        const homeLogoUrl = pickLogo(teams.home && teams.home.team);
+        const awayLogoUrl = pickLogo(teams.away && teams.away.team);
+
+        let offenseId = null;
+        if (play.teamParticipants) {
+          const off = play.teamParticipants.find(function (x) { return x.type === "offense"; });
+          if (off) offenseId = off.id;
+        }
+        if (!offenseId && play.start && play.start.team) offenseId = play.start.team.id;
+        if (!offenseId) offenseId = play.teamId;
+
+        const homeId = teams.home && (teams.home.id || (teams.home.team && teams.home.team.id));
+        const isHomeOffense = String(offenseId) === String(homeId);
+        const offenseColor = isHomeOffense ? homeColor : awayColor;
+        const offenseAbbr = isHomeOffense ? homeAbbr : awayAbbr;
+
+        const ns = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(ns, "svg");
+        svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+        svg.setAttribute("class", "field-svg");
+        svg.setAttribute("width", "100%");
+        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        svg.style.display = "block";
+
+        function el(name, attrs) {
+          const n = document.createElementNS(ns, name);
+          if (attrs) {
+            Object.keys(attrs).forEach(function (k) {
+              n.setAttribute(k, attrs[k]);
+            });
+          }
+          return n;
+        }
+
+        // Fondo
+        svg.appendChild(el("rect", { x: 0, y: 0, width: W, height: H, fill: "#0a1f12", rx: "6" }));
+
+        // Franjas
+        for (let y = 0; y < 100; y += 10) {
+          if ((y / 10) % 2 === 0) {
+            svg.appendChild(el("rect", {
+              x: yardToX(y), y: TOP, width: 10 * Y, height: FH,
+              fill: "#0f2e1c", opacity: "0.5"
+            }));
+          }
+        }
+
+        svg.appendChild(el("rect", {
+          x: EZ, y: TOP, width: 100 * Y, height: FH,
+          fill: "#15803d", opacity: "0.4"
+        }));
+
+        // End zones
+        svg.appendChild(el("rect", {
+          x: 0, y: TOP, width: EZ, height: FH,
+          fill: awayColor, opacity: "0.55"
+        }));
+        svg.appendChild(el("rect", {
+          x: W - EZ, y: TOP, width: EZ, height: FH,
+          fill: homeColor, opacity: "0.55"
+        }));
+
+        // ——— LOGOS EN LAS END ZONES ———
+        const logoSize = 56;
+        if (awayLogoUrl) {
+          const imgA = el("image", {
+            href: awayLogoUrl,
+            x: String((EZ - logoSize) / 2),
+            y: String(midY - logoSize / 2),
+            width: String(logoSize),
+            height: String(logoSize),
+            opacity: "0.95",
+            preserveAspectRatio: "xMidYMid meet"
+          });
+          // Compatibilidad Safari / algunos navegadores
+          imgA.setAttributeNS("http://www.w3.org/1999/xlink", "href", awayLogoUrl);
+          svg.appendChild(imgA);
+        }
+        if (homeLogoUrl) {
+          const imgH = el("image", {
+            href: homeLogoUrl,
+            x: String(W - EZ + (EZ - logoSize) / 2),
+            y: String(midY - logoSize / 2),
+            width: String(logoSize),
+            height: String(logoSize),
+            opacity: "0.95",
+            preserveAspectRatio: "xMidYMid meet"
+          });
+          imgH.setAttributeNS("http://www.w3.org/1999/xlink", "href", homeLogoUrl);
+          svg.appendChild(imgH);
+        }
+
+        // Abreviaturas debajo de los logos (o centradas si no hay logo)
+        function ezLabel(label, cx, rot) {
+          const tx = el("text", {
+            x: cx, y: midY + 6, "text-anchor": "middle",
+            fill: "#ffffff", "font-size": "16", "font-weight": "900",
+            "letter-spacing": "2", opacity: "0.9",
+            transform: "rotate(" + rot + " " + cx + " " + midY + ")",
+            "font-family": "Arial,sans-serif"
+          });
+          tx.textContent = label;
+          svg.appendChild(tx);
+        }
+        // Solo texto vertical si no hay logo (el logo ya identifica al equipo)
+        if (!awayLogoUrl) ezLabel(awayAbbr, EZ / 2, -90);
+        if (!homeLogoUrl) ezLabel(homeAbbr, W - EZ / 2, 90);
+
+        // Borde
+        svg.appendChild(el("rect", {
+          x: 1, y: TOP, width: W - 2, height: FH,
+          fill: "none", stroke: "#e2e8f0", "stroke-width": "3"
+        }));
+
+        // Goal lines
+        [EZ, W - EZ].forEach(function (x) {
+          svg.appendChild(el("line", {
+            x1: x, y1: TOP, x2: x, y2: TOP + FH,
+            stroke: "#f8fafc", "stroke-width": "4"
+          }));
+        });
+
+        // Líneas de yarda
+        for (let y = 5; y < 100; y += 5) {
+          const x = yardToX(y);
+          const ten = y % 10 === 0;
+          svg.appendChild(el("line", {
+            x1: x, y1: TOP, x2: x, y2: TOP + FH,
+            stroke: ten ? "#f1f5f9" : "#86efac",
+            "stroke-width": ten ? "2" : "1",
+            opacity: ten ? "0.9" : "0.35"
+          }));
+        }
+
+        svg.appendChild(el("line", {
+          x1: yardToX(50), y1: TOP, x2: yardToX(50), y2: TOP + FH,
+          stroke: "#fff", "stroke-width": "3", opacity: "0.95"
+        }));
+
+        // Números
+        for (let y = 10; y <= 90; y += 10) {
+          const num = y <= 50 ? y : 100 - y;
+          const x = yardToX(y);
+          [TOP + 26, TOP + FH - 12].forEach(function (yy) {
+            const tx = el("text", {
+              x: x, y: yy, "text-anchor": "middle",
+              fill: "#ecfdf5", "font-size": "22", "font-weight": "800",
+              "font-family": "Arial,sans-serif", opacity: "0.8"
+            });
+            tx.textContent = String(num);
+            svg.appendChild(tx);
+          });
+        }
+
+        // Hash marks
+        const hy1 = TOP + FH * 0.28;
+        const hy2 = TOP + FH * 0.72;
+        for (let y = 1; y < 100; y++) {
+          if (y % 5 === 0) continue;
+          const x = yardToX(y);
+          [hy1, hy2].forEach(function (hy) {
+            svg.appendChild(el("line", {
+              x1: x - 3, y1: hy, x2: x + 3, y2: hy,
+              stroke: "#bbf7d0", "stroke-width": "1.5", opacity: "0.4"
+            }));
+          });
+        }
+
+        // Si es tiempo muerto / fin de cuarto / final → campo limpio + etiqueta
+        if (eventoEspecial) {
+          // Panel central
+          const pw = 420, ph = 100;
+          const px = (W - pw) / 2, py = (H - ph) / 2;
+          svg.appendChild(el("rect", {
+            x: px, y: py, width: pw, height: ph, rx: "12",
+            fill: "#0f172a", opacity: "0.92",
+            stroke: "#334155", "stroke-width": "2"
+          }));
+          const icon = el("text", {
+            x: W / 2, y: py + 42, "text-anchor": "middle",
+            fill: "#fbbf24", "font-size": "28"
+          });
+          icon.textContent = eventoEspecial.icono + "  " + eventoEspecial.titulo;
+          svg.appendChild(icon);
+          const sub = el("text", {
+            x: W / 2, y: py + 72, "text-anchor": "middle",
+            fill: "#94a3b8", "font-size": "13"
+          });
+          const subText = traducirJugada(play.text || tipoRaw || "").slice(0, 80);
+          sub.textContent = subText;
+          svg.appendChild(sub);
+        } else {
+          // Scrimmage
+          svg.appendChild(el("line", {
+            x1: startX, y1: TOP + 2, x2: startX, y2: TOP + FH - 2,
+            stroke: "#facc15", "stroke-width": "3",
+            "stroke-dasharray": "10 6", opacity: "0.95"
+          }));
+
+          // First down
+          const dist = play.start && play.start.distance;
+          if (dist != null && Number(dist) > 0) {
+            let dir = endX >= startX ? 1 : -1;
+            if (startYard === endYard && sYTE != null && eYTE != null) {
+              dir = Number(sYTE) > Number(eYTE) ? 1 : -1;
+            }
+            const fdYard = clamp(startYard + dir * Number(dist), startYard);
+            const fdX = yardToX(fdYard);
+            if (Math.abs(fdX - startX) > 5) {
+              svg.appendChild(el("line", {
+                x1: fdX, y1: TOP + 2, x2: fdX, y2: TOP + FH - 2,
+                stroke: "#38bdf8", "stroke-width": "3", opacity: "0.85"
+              }));
+            }
+          }
+
+          // Trayectoria
+          const dx = endX - startX;
+          const curve = Math.min(50, Math.abs(dx) * 0.3 + 15);
+          const cy = midY - (dx >= 0 ? 1 : -1) * curve * 0.35;
+          const path = el("path", {
+            d: "M " + startX + " " + midY + " Q " + ((startX + endX) / 2) + " " + cy + " " + endX + " " + midY,
+            fill: "none",
+            stroke: offenseColor,
+            "stroke-width": "6",
+            "stroke-linecap": "round",
+            opacity: "0.95"
+          });
+          const plen = Math.max(60, Math.abs(dx) * 1.15 + 30);
+          path.style.strokeDasharray = String(plen);
+          path.style.strokeDashoffset = String(plen);
+          path.style.animation = "drawLine 0.8s ease forwards";
+          svg.appendChild(path);
+
+          if (Math.abs(dx) > 4) {
+            const as = 14;
+            const pts = dx >= 0
+              ? (endX + "," + midY + " " + (endX - as) + "," + (midY - 9) + " " + (endX - as) + "," + (midY + 9))
+              : (endX + "," + midY + " " + (endX + as) + "," + (midY - 9) + " " + (endX + as) + "," + (midY + 9));
+            const arrow = el("polygon", { points: pts, fill: offenseColor });
+            arrow.style.opacity = "0";
+            arrow.style.animation = "fadeIn 0.3s 0.65s ease forwards";
+            svg.appendChild(arrow);
+          }
+
+          svg.appendChild(el("ellipse", {
+            cx: startX, cy: midY, rx: "11", ry: "8",
+            fill: "#f5f0e6", stroke: "#44403c", "stroke-width": "2"
+          }));
+          svg.appendChild(el("line", {
+            x1: startX - 5, y1: midY, x2: startX + 5, y2: midY,
+            stroke: "#292524", "stroke-width": "1.5"
+          }));
+
+          const ballEnd = el("ellipse", {
+            cx: endX, cy: midY, rx: "13", ry: "9",
+            fill: offenseColor, stroke: "#fff", "stroke-width": "3"
+          });
+          ballEnd.style.opacity = "0";
+          ballEnd.style.animation = "fadeIn 0.35s 0.6s ease forwards";
+          svg.appendChild(ballEnd);
+
+          const yards = play.statYardage;
+          let labelStr = "";
+          if (yards != null && yards !== 0) {
+            labelStr = (yards > 0 ? "+" : "") + yards + " yd";
+          } else if (tipoRaw) {
+            labelStr = (typeof traducirTipo === "function") ? traducirTipo(tipoRaw) : tipoRaw;
+          }
+          if (labelStr) {
+            const label = el("text", {
+              x: (startX + endX) / 2, y: midY - 40,
+              "text-anchor": "middle", fill: "#fef08a",
+              "font-size": "26", "font-weight": "800",
+              "font-family": "Arial,sans-serif",
+              stroke: "#0a1f12", "stroke-width": "4", "paint-order": "stroke"
+            });
+            label.textContent = labelStr;
+            label.style.opacity = "0";
+            label.style.animation = "fadeIn 0.4s 0.4s ease forwards";
+            svg.appendChild(label);
+          }
+
+          // (posesión y leyenda van en el panel inferior, no sobre el campo)
+
+        }
+
+        wrap.appendChild(svg);
+
+        if (!document.getElementById("fieldAnims")) {
+          const style = document.createElement("style");
+          style.id = "fieldAnims";
+          style.textContent = "@keyframes drawLine{to{stroke-dashoffset:0}}@keyframes fadeIn{to{opacity:1}}";
+          document.head.appendChild(style);
+        }
+      } catch (err) {
+        console.error("Error dibujando campo:", err);
+        const wrap = document.getElementById("fieldWrap");
+        if (wrap) {
+          wrap.innerHTML = '<div class="empty"><p>Error al dibujar el campo.<br>' +
+            (err && err.message ? err.message : err) + '</p></div>';
+        }
+      }
+    }
+
+
+    // ─────────────────────────────────────────────
+    // Eventos UI
+    // ─────────────────────────────────────────────
+    $("#loadBtn").addEventListener("click", () => {
+      const id = $("#gameIdInput").value.trim() || gameSelect.value;
+      if (id) loadGame(id);
+      else setStatus("Introduce un ID o selecciona un partido", "error");
+    });
+
+    gameSelect.addEventListener("change", () => {
+      if (gameSelect.value) {
+        $("#gameIdInput").value = gameSelect.value;
+        loadGame(gameSelect.value);
+      }
+    });
+
+    $("#refreshBtn").addEventListener("click", () => {
+      if (currentGameId) loadGame(currentGameId);
+      else loadScoreboard();
+    });
+
+    function setCompact(on, save) {
+      document.body.classList.toggle("compact-mode", on);
+      $("#overlayBtn").textContent = on ? "Normal" : "Compacto";
+      if (save) { try { localStorage.setItem("nflpbp_compact", on ? "1" : "0"); } catch (e) {} }
+    }
+    $("#overlayBtn").addEventListener("click", () => {
+      setCompact(!document.body.classList.contains("compact-mode"), true);
+    });
+
+    // —— Navegación entre jugadas ——
+    function isScoring(p) { return !!(p && (p.scoringPlay || p.isScore)); }
+
+    function updateNav() {
+      const pos = $("#navPos");
+      if (!pos) return;
+      const has = selectedIdx != null && allPlays.length > 0;
+      pos.textContent = has ? (selectedIdx + 1) + " / " + allPlays.length : "";
+      $("#prevBtn").disabled = !has || selectedIdx <= 0;
+      $("#nextBtn").disabled = !has || selectedIdx >= allPlays.length - 1;
+    }
+
+    function stepPlay(d) {
+      if (!allPlays.length) return;
+      let next = selectedIdx == null ? (d > 0 ? 0 : allPlays.length - 1) : selectedIdx + d;
+      // Con el filtro de anotaciones activo, saltar solo entre anotaciones
+      while (scoresOnly && next >= 0 && next < allPlays.length && !isScoring(allPlays[next])) next += d;
+      if (next < 0 || next >= allPlays.length) return;
+      selectPlay(next);
+    }
+
+    $("#prevBtn").addEventListener("click", () => stepPlay(-1));
+    $("#nextBtn").addEventListener("click", () => stepPlay(1));
+
+    function setFollow(on) {
+      followLive = on;
+      const b = $("#followBtn");
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+    }
+    $("#followBtn").addEventListener("click", () => {
+      setFollow(!followLive);
+      if (followLive && allPlays.length) selectPlay(allPlays.length - 1, true);
+    });
+
+    function applyFilter() {
+      playsList.classList.toggle("only-scores", scoresOnly);
+      const b = $("#scoreFilterBtn");
+      b.setAttribute("aria-pressed", String(scoresOnly));
+    }
+    $("#scoreFilterBtn").addEventListener("click", () => {
+      scoresOnly = !scoresOnly;
+      applyFilter();
+    });
+
+    // Teclado: ← ↑ k = anterior · → ↓ j = siguiente · Enter/Espacio sobre una jugada = seleccionar
+    document.addEventListener("keydown", (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      const tag = (t && t.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "select" || tag === "textarea") return;
+      if ((e.key === "Enter" || e.key === " ") && t.classList && t.classList.contains("play-item")) {
+        e.preventDefault();
+        selectPlay(parseInt(t.dataset.idx, 10));
+        return;
+      }
+      if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); stepPlay(1); }
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); stepPlay(-1); }
+    });
+
+    // —— Inicio ——
+    // Parámetros opcionales (útiles como Browser Source en OBS):
+    //   ?game=401671801&compact=1&follow=1   (también valen tras # )
+    (function init() {
+      const qs = new URLSearchParams(location.search);
+      const hs = new URLSearchParams(location.hash.replace(/^#/, ""));
+      const get = (k) => (qs.get(k) != null ? qs.get(k) : hs.get(k));
+
+      let compact = false;
+      try { compact = localStorage.getItem("nflpbp_compact") === "1"; } catch (e) {}
+      if (get("compact") != null) compact = get("compact") === "1";
+      setCompact(compact, false);
+      if (get("follow") === "1") setFollow(true);
+
+      const gid = (get("game") || "").trim();
+      loadScoreboard().then(() => {
+        if (gid) {
+          $("#gameIdInput").value = gid;
+          loadGame(gid);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

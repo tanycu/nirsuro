@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista Partidos NFL OBS 1920x1080</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@700;900&family=Teko:wght@600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Teko', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Exact 1920x1080 transparent canvas optimized for OBS Browser Source */
+        body {
+            background-color: transparent !important;
+            margin: 0;
+            padding: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Clean custom scrollbar if matches exceed container height */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(220, 38, 38, 0.8);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="flex flex-col justify-between p-12">
+
+    <!-- Top Header Bar -->
+    <header class="w-full flex justify-between items-center bg-black/85 backdrop-blur-md border-b-4 border-red-600 px-8 py-4 rounded-2xl shadow-2xl">
+        <div class="flex items-center space-x-4">
+            <span class="w-4 h-4 rounded-full bg-red-600 animate-ping"></span>
+            <h1 class="font-display font-bold text-4xl tracking-wider text-white uppercase drop-shadow-md">
+                JORNADA NFL <span class="text-red-500">EN DIRECTO</span>
+            </h1>
+        </div>
+        <div class="flex items-center space-x-6">
+            <div class="text-gray-300 font-bold text-lg uppercase tracking-wider bg-gray-900/80 px-4 py-2 rounded-xl border border-gray-700">
+                <i class="fa-solid fa-clock text-red-500 mr-2"></i> Hora España (Península): <span id="spain-clock" class="font-mono text-white">--:--:--</span>
+            </div>
+            <div class="bg-red-600 text-white font-display font-bold text-2xl px-6 py-1.5 rounded-xl shadow-lg uppercase tracking-wide">
+                ESPN LIVE
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area: Grid of Game Cards optimized for 1920x1080 -->
+    <main class="w-full my-6 flex-1 flex items-center">
+        <div id="schedule-grid" class="w-full grid grid-cols-3 gap-6 max-h-[800px] overflow-y-auto pr-2">
+            <!-- Loading State Card -->
+            <div class="col-span-3 flex flex-col items-center justify-center py-24 bg-black/70 backdrop-blur-md rounded-2xl border-2 border-gray-800 text-white shadow-2xl">
+                <i class="fa-solid fa-spinner fa-spin text-5xl text-red-500 mb-4"></i>
+                <span class="font-display font-bold text-3xl tracking-wide">Sincronizando partidos con la API de ESPN...</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom Status Bar -->
+    <footer class="w-full bg-black/85 backdrop-blur-md border-t-2 border-red-600/60 px-8 py-3 rounded-xl flex justify-between items-center text-gray-400 text-sm font-bold shadow-xl">
+        <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-satellite-dish text-red-500"></i>
+            <span>Actualización automática cada 60 segundos</span>
+        </div>
+        <div class="tracking-widest uppercase font-display text-lg text-white">
+            TRANSMISIÓN OFICIAL OBS - 1920x1080 FULL HD
+        </div>
+    </footer>
+
+    <!-- Application Logic Script -->
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchSchedule();
+            setInterval(fetchSchedule, 60000); // Refresh data every 60s
+            updateClock();
+            setInterval(updateClock, 1000); // Update clock every second
+        });
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('spain-clock').innerText = now.toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + 'h';
+        }
+
+        async function fetchSchedule() {
+            try {
+                const response = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard');
+                const data = await response.json();
+
+                const events = data.events || [];
+                const grid = document.getElementById('schedule-grid');
+
+                if (events.length === 0) {
+                    grid.innerHTML = `
+                        <div class="col-span-3 text-center py-20 bg-black/80 rounded-2xl border border-gray-800 text-gray-300 text-2xl font-bold">
+                            No hay partidos programados en este momento.
+                        </div>`;
+                    return;
+                }
+
+                let html = '';
+                events.forEach(event => {
+                    const comp = event.competitions[0];
+                    // Strict identification: Home team first, Away team second
+                    const homeComp = comp.competitors.find(c => c.homeAway === 'home');
+                    const awayComp = comp.competitors.find(c => c.homeAway === 'away') || comp.competitors[1];
+
+                    const statusState = event.status.type.state; // pre, in, post
+                    const gameDate = new Date(event.date);
+                    
+                    const timeSpain = gameDate.toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' });
+                    const daySpain = gameDate.toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid', weekday: 'short', day: 'numeric', month: 'short' });
+
+                    let statusBadge = '';
+                    if (statusState === 'in') {
+                        statusBadge = `<span class="bg-red-600 text-white px-4 py-1 rounded-lg text-sm font-black uppercase tracking-wider animate-pulse shadow-lg">EN VIVO (${event.status.type.detail || 'Q'})</span>`;
+                    } else if (statusState === 'post') {
+                        statusBadge = `<span class="bg-gray-800 text-gray-300 px-4 py-1 rounded-lg text-sm font-bold uppercase tracking-wider shadow">FINALIZADO</span>`;
+                    } else {
+                        statusBadge = `<span class="bg-blue-900/90 text-blue-200 border border-blue-500/50 px-4 py-1 rounded-lg text-sm font-bold uppercase tracking-wider shadow">${daySpain} - ${timeSpain}h</span>`;
+                    }
+
+                    html += `
+                        <div class="bg-gradient-to-b from-gray-950/95 to-gray-900/95 border-2 border-gray-800 hover:border-red-600/70 transition-all duration-300 rounded-2xl p-6 shadow-2xl flex flex-col justify-between space-y-4">
+                            <!-- Header Status -->
+                            <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                                ${statusBadge}
+                                <span class="text-xs text-gray-400 font-extrabold uppercase tracking-widest">${event.season?.displayName || 'NFL Regular Season'}</span>
+                            </div>
+
+                            <!-- Teams & Scores (Home first on left, Away second on right) -->
+                            <div class="flex items-center justify-between py-2">
+                                <!-- Home Team (Left) -->
+                                <div class="flex items-center space-x-4 flex-1">
+                                    <img src="${homeComp.team.logo}" class="w-16 h-16 object-contain drop-shadow-2xl" onerror="this.src='https://placehold.co/64x64/111827/FFF?text=NFL'">
+                                    <div class="flex flex-col">
+                                        <span class="text-xl font-black text-white tracking-wide">${homeComp.team.displayName || homeComp.team.name}</span>
+                                        <span class="text-xs text-gray-400 uppercase font-bold">Local</span>
+                                    </div>
+                                </div>
+                                <div class="text-4xl font-display font-black text-red-500 px-4">
+                                    ${statusState !== 'pre' ? (homeComp.score || '0') : 'vs'}
+                                </div>
+                            </div>
+
+                            <div class="border-t border-gray-800/80 pt-3 flex items-center justify-between">
+                                <!-- Away Team (Right) -->
+                                <div class="flex items-center space-x-4 flex-1">
+                                    <img src="${awayComp.team.logo}" class="w-16 h-16 object-contain drop-shadow-2xl" onerror="this.src='https://placehold.co/64x64/111827/FFF?text=NFL'">
+                                    <div class="flex flex-col">
+                                        <span class="text-xl font-black text-white tracking-wide">${awayComp.team.displayName || awayComp.team.name}</span>
+                                        <span class="text-xs text-gray-400 uppercase font-bold">Visitante</span>
+                                    </div>
+                                </div>
+                                <div class="text-4xl font-display font-black text-white px-4">
+                                    ${statusState !== 'pre' ? (awayComp.score || '0') : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                grid.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error fetching schedule 1920x1080:', error);
+                document.getElementById('schedule-grid').innerHTML = `
+                    <div class="col-span-3 text-center py-20 bg-black/85 rounded-2xl border border-red-600 text-red-400 text-2xl font-bold">
+                        Error al conectar con la API de ESPN. Verifique su conexión.
+                    </div>`;
+            }
+        }
+    </script>
+</body>
+</html>
