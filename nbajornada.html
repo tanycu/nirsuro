@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Live Hub & Stats</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Scrollbar personalizado */
+        ::-webkit-scrollbar { height: 8px; width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #f97316; }
+        
+        /* Efecto hover en filas de jugadores */
+        .player-row:hover {
+            background-color: rgba(249, 115, 22, 0.1);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    <!-- Navbar -->
+    <header class="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('games')">
+                <div class="bg-orange-500 p-2 rounded-xl text-slate-950">
+                    <i data-lucide="dribble" class="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <h1 class="text-xl font-black tracking-wider text-white">NBA<span class="text-orange-500">STATS</span></h1>
+            </div>
+            
+            <nav class="flex space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <button onclick="switchTab('games')" id="tab-games" class="tab-btn px-4 py-2 rounded-lg text-sm font-bold transition-all bg-orange-500 text-white">Partidos</button>
+                <button onclick="switchTab('standings')" id="tab-standings" class="tab-btn px-4 py-2 rounded-lg text-sm font-bold text-slate-400 hover:text-white transition-all">Clasificación</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+        
+        <!-- Loader Global -->
+        <div id="loader" class="hidden flex-col justify-center items-center py-20 gap-3">
+            <div class="animate-spin rounded-full h-10 w-10 border-4 border-orange-500 border-t-transparent"></div>
+            <span class="text-sm text-slate-400 font-medium">Cargando datos de la NBA...</span>
+        </div>
+
+        <!-- SECCIÓN: PARTIDOS -->
+        <section id="sec-games" class="tab-content">
+            <!-- Control de Fecha -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center space-x-2">
+                    <button onclick="changeDate(-1)" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">
+                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                    </button>
+                    <input type="date" id="date-picker" onchange="onDateChange(this.value)" class="bg-slate-800 text-white text-sm font-semibold rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:border-orange-500">
+                    <button onclick="changeDate(1)" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">
+                        <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <button onclick="setToday()" class="text-xs bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500 hover:text-white font-bold px-3 py-2 rounded-lg transition-all">
+                    Ir a Hoy
+                </button>
+            </div>
+
+            <div id="games-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+        </section>
+
+        <!-- SECCIÓN: CLASIFICACIÓN -->
+        <section id="sec-standings" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8" id="standings-container"></div>
+        </section>
+
+    </main>
+
+    <!-- MODAL DETALLES DEL PARTIDO (BOXSCORE) -->
+    <div id="modal-game" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative">
+            
+            <button onclick="closeModal()" class="absolute top-4 right-4 z-10 bg-slate-800 text-slate-400 hover:text-white p-2 rounded-full transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div id="modal-content" class="p-6"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-6 text-center text-slate-500 text-xs">
+        Datos en tiempo real provistos por ESPN API • Haz clic en los jugadores para ver su perfil.
+    </footer>
+
+    <script>
+        const API_BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba";
+        let currentDate = new Date();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initDatePicker();
+            loadGames();
+            lucide.createIcons();
+        });
+
+        // Helper para obtener el logo oficial del equipo de forma segura
+        function getTeamLogo(team) {
+            if (!team) return 'https://a.espncdn.com/i/teamlogos/nba/500/nba.png';
+            if (team.logos && team.logos.length > 0 && team.logos[0].href) return team.logos[0].href;
+            if (team.logo) return team.logo;
+            if (team.abbreviation) return `https://a.espncdn.com/i/teamlogos/nba/500/${team.abbreviation.toLowerCase()}.png`;
+            return 'https://a.espncdn.com/i/teamlogos/nba/500/nba.png';
+        }
+
+        const logoFallback = "this.onerror=null;this.src='https://a.espncdn.com/i/teamlogos/nba/500/nba.png'";
+
+        // Manejo de Fechas
+        function initDatePicker() {
+            const picker = document.getElementById('date-picker');
+            picker.value = currentDate.toISOString().split('T')[0];
+        }
+
+        function changeDate(days) {
+            currentDate.setDate(currentDate.getDate() + days);
+            initDatePicker();
+            loadGames();
+        }
+
+        function setToday() {
+            currentDate = new Date();
+            initDatePicker();
+            loadGames();
+        }
+
+        function onDateChange(val) {
+            if(!val) return;
+            currentDate = new Date(val + 'T00:00:00');
+            loadGames();
+        }
+
+        // Navegación de pestañas
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('bg-orange-500', 'text-white');
+                el.classList.add('text-slate-400');
+            });
+
+            document.getElementById(`tab-${tab}`).classList.add('bg-orange-500', 'text-white');
+            document.getElementById(`tab-${tab}`).classList.remove('text-slate-400');
+            document.getElementById(`sec-${tab}`).classList.remove('hidden');
+
+            if(tab === 'games') loadGames();
+            if(tab === 'standings') loadStandings();
+        }
+
+        function showLoader(show) {
+            document.getElementById('loader').style.display = show ? 'flex' : 'none';
+        }
+
+        // 1. CARGAR PARTIDOS
+        async function loadGames() {
+            showLoader(true);
+            const container = document.getElementById('games-container');
+            container.innerHTML = '';
+
+            const dateStr = currentDate.toISOString().split('T')[0].replace(/-/g, '');
+
+            try {
+                const res = await fetch(`${API_BASE}/scoreboard?dates=${dateStr}`);
+                const data = await res.json();
+                const events = data.events || [];
+
+                if (events.length === 0) {
+                    container.innerHTML = `
+                        <div class="col-span-full py-16 text-center text-slate-500">
+                            <i data-lucide="calendar-x" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                            <p class="text-base font-semibold">No hay partidos registrados para esta fecha.</p>
+                        </div>`;
+                } else {
+                    events.forEach(game => {
+                        const comp = game.competitions[0];
+                        const home = comp.competitors.find(t => t.homeAway === 'home');
+                        const away = comp.competitors.find(t => t.homeAway === 'away');
+                        const status = game.status.type.shortDetail;
+                        const isLive = game.status.type.state === 'in';
+
+                        const awayLogo = getTeamLogo(away.team);
+                        const homeLogo = getTeamLogo(home.team);
+
+                        const card = document.createElement('div');
+                        card.className = "bg-slate-900 border border-slate-800 hover:border-orange-500/50 rounded-2xl p-5 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-xl hover:shadow-orange-500/5 group flex flex-col justify-between";
+                        card.onclick = () => openGameModal(game.id);
+
+                        card.innerHTML = `
+                            <div>
+                                <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+                                    <span class="text-xs font-bold ${isLive ? 'text-red-500 animate-pulse flex items-center gap-1' : 'text-slate-400'} uppercase tracking-wider">
+                                        ${isLive ? '<span class="w-2 h-2 rounded-full bg-red-500"></span>' : ''} ${status}
+                                    </span>
+                                    <span class="text-xs text-orange-400 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                        Ver Estadísticas <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                                    </span>
+                                </div>
+                                <div class="space-y-4">
+                                    <!-- Equipo Visitante -->
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center space-x-3">
+                                            <img src="${awayLogo}" onerror="${logoFallback}" class="w-9 h-9 object-contain" alt="">
+                                            <div>
+                                                <p class="font-bold text-white text-base leading-none">${away.team.displayName}</p>
+                                                <p class="text-xs text-slate-500 font-medium">${away.records?.[0]?.summary || ''}</p>
+                                            </div>
+                                        </div>
+                                        <span class="text-2xl font-black ${parseInt(away.score) > parseInt(home.score) ? 'text-white' : 'text-slate-400'}">${away.score || '0'}</span>
+                                    </div>
+
+                                    <!-- Equipo Local -->
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center space-x-3">
+                                            <img src="${homeLogo}" onerror="${logoFallback}" class="w-9 h-9 object-contain" alt="">
+                                            <div>
+                                                <p class="font-bold text-white text-base leading-none">${home.team.displayName}</p>
+                                                <p class="text-xs text-slate-500 font-medium">${home.records?.[0]?.summary || ''}</p>
+                                            </div>
+                                        </div>
+                                        <span class="text-2xl font-black ${parseInt(home.score) > parseInt(away.score) ? 'text-white' : 'text-slate-400'}">${home.score || '0'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+                }
+            } catch (err) {
+                container.innerHTML = `<p class="text-red-400 col-span-full text-center">Error al cargar marcadores.</p>`;
+            } finally {
+                showLoader(false);
+                lucide.createIcons();
+            }
+        }
+
+        // 2. MODAL BOXSCORE DETALLADO
+        async function openGameModal(gameId) {
+            const modal = document.getElementById('modal-game');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            content.innerHTML = `
+                <div class="py-12 text-center">
+                    <div class="animate-spin rounded-full h-10 w-10 border-4 border-orange-500 border-t-transparent mx-auto mb-3"></div>
+                    <p class="text-slate-400 text-sm">Cargando detalles del partido...</p>
+                </div>`;
+
+            try {
+                const res = await fetch(`${API_BASE}/summary?event=${gameId}`);
+                const data = await res.json();
+
+                const boxscore = data.boxscore;
+                const header = data.header.competitions[0];
+                const home = header.competitors.find(t => t.homeAway === 'home');
+                const away = header.competitors.find(t => t.homeAway === 'away');
+
+                const awayLogo = getTeamLogo(away.team);
+                const homeLogo = getTeamLogo(home.team);
+
+                // Extracción de Puntuación por Cuartos
+                let linescoresTH = '';
+                let homeLinescoresTD = '';
+                let awayLinescoresTD = '';
+
+                const homeLines = home.linescores || [];
+                const awayLines = away.linescores || [];
+
+                if (homeLines.length > 0) {
+                    homeLines.forEach((period, idx) => {
+                        const label = idx < 4 ? `Q${idx + 1}` : `OT${idx - 3}`;
+                        linescoresTH += `<th class="py-1 px-2 text-center text-xs text-slate-400 font-semibold">${label}</th>`;
+                        
+                        const hVal = period.displayValue ?? period.value ?? '0';
+                        const aVal = awayLines[idx] ? (awayLines[idx].displayValue ?? awayLines[idx].value ?? '0') : '0';
+
+                        homeLinescoresTD += `<td class="py-1 px-2 text-center font-medium">${hVal}</td>`;
+                        awayLinescoresTD += `<td class="py-1 px-2 text-center font-medium">${aVal}</td>`;
+                    });
+                }
+
+                // Estadísticas individuales de jugadores
+                let playersHTML = '';
+                if (boxscore && boxscore.players) {
+                    boxscore.players.forEach(teamBlock => {
+                        const teamName = teamBlock.team.displayName;
+                        const teamLogo = getTeamLogo(teamBlock.team);
+                        const statsCat = teamBlock.statistics[0];
+                        if (!statsCat) return;
+
+                        // Obtener las etiquetas de las estadísticas (MIN, PTS, REB, AST, etc.)
+                        const labels = statsCat.labels || ['MIN', 'PTS', 'REB', 'AST', '3PT'];
+
+                        let playerRows = '';
+                        statsCat.athletes.forEach(item => {
+                            const p = item.athlete;
+                            const stats = item.stats;
+                            
+                            // Generar URL del perfil del jugador en ESPN
+                            const playerProfileUrl = `https://www.espn.com/nba/player/_/id/${p.id}`;
+
+                            playerRows += `
+                                <tr class="player-row border-b border-slate-800/60 hover:bg-slate-800/40 transition-colors" onclick="window.open('${playerProfileUrl}', '_blank')">
+                                    <td class="py-2 px-3 font-semibold text-white flex items-center gap-2 min-w-[140px]">
+                                        <img src="${p.headshot?.href || 'https://a.espncdn.com/i/headshots/nophoto.png'}" class="w-6 h-6 rounded-full object-cover bg-slate-800">
+                                        <span>${p.shortName}</span>
+                                    </td>
+                                    <td class="text-center py-2 px-2 text-slate-300 font-mono">${stats[0] || '-'}</td>
+                                    <td class="text-center py-2 px-2 font-bold text-orange-400 font-mono">${stats[1] || '-'}</td>
+                                    <td class="text-center py-2 px-2 text-slate-300 font-mono">${stats[2] || '-'}</td>
+                                    <td class="text-center py-2 px-2 text-slate-300 font-mono">${stats[3] || '-'}</td>
+                                    <td class="text-center py-2 px-2 text-slate-400 font-mono">${stats[4] || '-'}</td>
+                                </tr>
+                            `;
+                        });
+
+                        playersHTML += `
+                            <div class="mt-6">
+                                <h4 class="font-bold text-sm text-orange-400 mb-2 flex items-center gap-2">
+                                    <img src="${teamLogo}" onerror="${logoFallback}" class="w-5 h-5 object-contain"> ${teamName}
+                                </h4>
+                                <div class="overflow-x-auto rounded-xl border border-slate-800">
+                                    <table class="w-full text-left">
+                                        <thead class="bg-slate-950 text-slate-400 text-[11px] uppercase">
+                                            <tr>
+                                                <th class="py-2 px-3">Jugador</th>
+                                                <th class="text-center py-2 px-2">${labels[0] || 'MIN'}</th>
+                                                <th class="text-center py-2 px-2">${labels[1] || 'PTS'}</th>
+                                                <th class="text-center py-2 px-2">${labels[2] || 'REB'}</th>
+                                                <th class="text-center py-2 px-2">${labels[3] || 'AST'}</th>
+                                                <th class="text-center py-2 px-2">${labels[4] || '3PT'}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>${playerRows}</tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    playersHTML = `<p class="text-center text-slate-500 my-6 text-sm">Estadísticas detalladas no disponibles para este partido aún.</p>`;
+                }
+
+                content.innerHTML = `
+                    <div class="grid grid-cols-3 items-center border-b border-slate-800 pb-6 text-center">
+                        <div class="flex flex-col items-center">
+                            <img src="${awayLogo}" onerror="${logoFallback}" class="w-16 h-16 object-contain mb-2">
+                            <h3 class="font-bold text-lg text-white">${away.team.displayName}</h3>
+                            <span class="text-3xl font-black text-white mt-1">${away.score || 0}</span>
+                        </div>
+                        <div>
+                            <span class="text-xs font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 px-3 py-1 rounded-full uppercase">
+                                ${header.status.type.shortDetail}
+                            </span>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <img src="${homeLogo}" onerror="${logoFallback}" class="w-16 h-16 object-contain mb-2">
+                            <h3 class="font-bold text-lg text-white">${home.team.displayName}</h3>
+                            <span class="text-3xl font-black text-white mt-1">${home.score || 0}</span>
+                        </div>
+                    </div>
+
+                    ${linescoresTH ? `
+                    <div class="my-6 overflow-x-auto">
+                        <table class="w-full text-xs text-slate-300">
+                            <thead>
+                                <tr class="border-b border-slate-800">
+                                    <th class="py-1 text-left text-slate-500">Equipo</th>
+                                    ${linescoresTH}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-slate-800/50">
+                                    <td class="py-2 font-bold text-white">${away.team.abbreviation}</td>
+                                    ${awayLinescoresTD}
+                                </tr>
+                                <tr>
+                                    <td class="py-2 font-bold text-white">${home.team.abbreviation}</td>
+                                    ${homeLinescoresTD}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    ` : ''}
+
+                    <div class="mt-4">
+                        <h3 class="font-bold text-base text-white border-b border-slate-800 pb-2">Rendimiento Individual (Haz clic en un jugador)</h3>
+                        ${playersHTML}
+                    </div>
+                `;
+
+            } catch (err) {
+                content.innerHTML = `<p class="text-red-400 text-center py-8">Error al cargar el Boxscore del partido.</p>`;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal-game').classList.add('hidden');
+        }
+
+        // 3. CARGAR CLASIFICACIÓN (ORDEN OFICIAL: MEJOR EQUIPO ARRIBA, PUESTO 1 AL 15)
+        async function loadStandings() {
+            showLoader(true);
+            const container = document.getElementById('standings-container');
+            container.innerHTML = '';
+
+            try {
+                const res = await fetch(`https://site.web.api.espn.com/apis/v2/sports/basketball/nba/standings`);
+                const data = await res.json();
+
+                data.children.forEach(conf => {
+                    let rows = '';
+
+                    // Ordenar de forma estándar: de mejor a peor porcentaje de victorias (%V)
+                    const sortedEntries = [...conf.standings.entries].sort((a, b) => {
+                        const pctA = parseFloat(a.stats.find(s => s.name === 'winPercent')?.value || 0);
+                        const pctB = parseFloat(b.stats.find(s => s.name === 'winPercent')?.value || 0);
+                        return pctB - pctA; // Descendente: los mejores (mayor %V) primero
+                    });
+
+                    sortedEntries.forEach((entry, idx) => {
+                        const team = entry.team;
+                        const teamLogo = getTeamLogo(team);
+                        const getStat = (name) => entry.stats.find(s => s.name === name)?.displayValue || '-';
+                        
+                        // El puesto es idx + 1 (el primero es 1, el último es 15)
+                        const positionNumber = idx + 1;
+
+                        rows += `
+                            <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors">
+                                <td class="py-3 px-3 text-center text-xs font-bold text-slate-500">${positionNumber}</td>
+                                <td class="py-3 px-3 flex items-center space-x-3">
+                                    <img src="${teamLogo}" onerror="${logoFallback}" class="w-6 h-6 object-contain" alt="">
+                                    <span class="font-bold text-sm text-white">${team.displayName || team.shortDisplayName}</span>
+                                </td>
+                                <td class="py-3 px-2 text-center text-sm font-semibold">${getStat('wins')}</td>
+                                <td class="py-3 px-2 text-center text-sm text-slate-400">${getStat('losses')}</td>
+                                <td class="py-3 px-2 text-center text-sm font-mono text-orange-400 font-bold">${getStat('winPercent')}</td>
+                                <td class="py-3 px-2 text-center text-xs text-slate-400 font-mono">${getStat('streak')}</td>
+                            </tr>
+                        `;
+                    });
+
+                    container.innerHTML += `
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                            <div class="bg-slate-950 px-5 py-4 border-b border-slate-800 flex justify-between items-center">
+                                <h3 class="font-bold text-base text-orange-500">${conf.name}</h3>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="text-[11px] text-slate-500 uppercase bg-slate-900 border-b border-slate-800">
+                                            <th class="py-2 px-3 text-center">Pos</th>
+                                            <th class="py-2 px-3">Equipo</th>
+                                            <th class="py-2 px-2 text-center">V</th>
+                                            <th class="py-2 px-2 text-center">D</th>
+                                            <th class="py-2 px-2 text-center">%V</th>
+                                            <th class="py-2 px-2 text-center">Racha</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${rows}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                container.innerHTML = `<p class="text-red-400 col-span-full text-center">Error al cargar clasificaciones.</p>`;
+            } finally {
+                showLoader(false);
+            }
+        }
+    </script>
+</body>
+</html>
